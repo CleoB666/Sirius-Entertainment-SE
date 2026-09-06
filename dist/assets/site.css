@@ -577,10 +577,52 @@ a.card:hover .card-link { color:white; }
   .brand strong { font-size:.82rem; }
   .hero { padding-top:42px; }
   .hero-visual { min-height:390px; border-radius:24px; }
-  .studio-visual { width:100%; min-height:460px; justify-self:stretch; }
-  .studio-logo { width:160px; height:160px; }
-  .studio-caption { left:14%; right:14%; bottom:8%; font-size:.72rem; letter-spacing:.12em; }
-  .studio-node { font-size:.66rem; }
+    .studio-visual {
+    width:100%;
+    min-height:0;
+    aspect-ratio:1;
+    justify-self:stretch;
+  }
+
+  .studio-logo {
+    width:clamp(128px,45%,160px);
+    height:clamp(128px,45%,160px);
+  }
+
+  .studio-node {
+    padding:.42rem .58rem;
+    font-size:clamp(.6rem,2.7vw,.66rem);
+    letter-spacing:.055em;
+  }
+
+  .node-games {
+    top:14%;
+    left:18%;
+  }
+
+  .node-stories {
+    top:23%;
+    right:10%;
+  }
+
+  .node-music {
+    bottom:27%;
+    left:10%;
+  }
+
+  .node-community {
+    right:10%;
+    bottom:22%;
+  }
+
+  .studio-caption {
+    left:19%;
+    right:19%;
+    bottom:10%;
+    font-size:clamp(.6rem,2.7vw,.68rem);
+    letter-spacing:.07em;
+    line-height:1.25;
+  }
   .hero-logo { width:105px; }
   .character.draco { width:128px; }
   .character.clawster { width:110px; }
@@ -602,6 +644,38 @@ a.card:hover .card-link { color:white; }
   .next-game-mark { width:54px; height:54px; border-radius:16px; font-size:2rem; }
   .notice { align-items:flex-start; flex-wrap:wrap; }
   .notice a { width:100%; margin-left:0; }
+}
+
+@media (max-width: 380px) {
+  .studio-node {
+    padding:.36rem .48rem;
+    font-size:.58rem;
+    letter-spacing:.035em;
+  }
+
+  .node-games {
+    left:16%;
+  }
+
+  .node-stories {
+    right:8%;
+  }
+
+  .node-music {
+    left:8%;
+  }
+
+  .node-community {
+    right:8%;
+  }
+
+  .studio-caption {
+    left:18%;
+    right:18%;
+    bottom:9%;
+    font-size:.58rem;
+    letter-spacing:.045em;
+  }
 }
 
 @media (prefers-reduced-motion: reduce) {
