@@ -17,6 +17,10 @@ ctx.imageSmoothingEnabled = true;
 ctx.imageSmoothingQuality = "high";
 const themeAudio = $("#themeAudio");
 const ambienceAudio = $("#ambienceAudio");
+const AMBIENCE_LOOP_ENDS = new Map([
+  ["assets/AmbienceTTHCBedroom.mp3", 33.24],
+  ["assets/AmbienceTTHCLivingroom.mp3", 33.27],
+]);
 
 const screens = {
   loading: $("#loadingScreen"), start: $("#startScreen"), select: $("#selectScreen"),
@@ -217,7 +221,7 @@ function buildLevelCards() {
   LEVELS.forEach((level, index) => {
     const card = document.createElement("button"); card.type = "button"; card.className = "level-card";
     card.disabled = index + 1 > unlocked;
-    const sockCount = level.items.filter((item) => item.kind === "sock").length;
+    const sockCount = guardSockLayout(level).length;
     const guardGoal = state.selectedId === "draco" ? `<span class="level-guard-goal">${sockCount} SOCK${sockCount === 1 ? "" : "S"} TO PROTECT · ${level.catches} THIEVES</span>` : "";
     card.innerHTML = `<span class="level-visual"></span><span class="level-card-content"><small>LEVEL ${level.number}</small><h3>${level.name}</h3><p>${level.tagline}</p>${guardGoal}</span>`;
     card.querySelector(".level-visual").style.backgroundImage = `linear-gradient(180deg, transparent 15%, rgba(3,8,14,.9) 88%), url(${level.background})`;
@@ -231,7 +235,7 @@ function prepareLevel(index) {
   $("#briefingNumber").textContent = `LEVEL ${index + 1} OF ${LEVELS.length}`;
   $("#briefingEyebrow").textContent = level.name; $("#briefingTitle").textContent = level.title;
   $("#briefingStory").textContent = isGuard ? level.guardStory : level.thiefStory;
-  const sockCount = level.items.filter((item) => item.kind === "sock").length;
+  const sockCount = guardSockLayout(level).length;
   $("#briefingMission").textContent = isGuard ? `Catch ${level.catches} sock thieves before they steal ${sockGoalText(sockCount)}. There is no time limit.` : `Collect ${level.items.length} items, avoid Draco and reach ${level.exit.label}.`;
   $("#briefingAbility").textContent = `${character.ability}: ${character.abilityHint}`;
   showScreen("briefing");
@@ -248,19 +252,26 @@ function createEntity(id, x, y, enemy = false) {
     lastSeenX: x, lastSeenY: y, memory: 0, searchTimer: 0, searchSide: 1, pulse: 0,
     animDistance: Math.random() * 30, idlePhase: Math.random() * Math.PI * 2,
     ledgePull: 0, roamTarget: null, roamSurface: -1, roamTimer: 0,
-    roamSpeed: .42, feintTimer: .8 + Math.random() * 1.8,
+    roamSpeed: .42, roamPause: Math.random() * .45, feintTimer: 1.1 + Math.random() * 2.4,
     stuckX: x, stuckCheckTimer: .65,
     hidden: false, hideSpot: null, hideTimer: 0, hideReveal: 0,
     invisible: 0, boostTimer: 0, abilityCooldown: 2.4 + Math.random() * 2.8,
     decisionTimer: .45 + Math.random() * .8, lootTarget: -1,
+    lootCooldown: 5.2 + Math.random() * 3.8,
   };
+}
+
+function guardSockLayout(level) {
+  if (level.guardSocks?.length) return level.guardSocks.map((item) => ({ ...item, kind: "sock" }));
+  return level.items.filter((item) => item.kind === "sock");
 }
 
 function initLevel() {
   const level = LEVELS[state.levelIndex]; const isGuard = state.selectedId === "draco";
   const spawn = level.playerSpawn[isGuard ? "guard" : "thief"];
   state.level = level; state.player = createEntity(state.selectedId, spawn[0], spawn[1]);
-  state.items = level.items.map((item, index) => ({ ...item, index, w: 26, h: 26, collected: false, magnet: false, phase: index * 1.7 }));
+  const levelItems = isGuard ? guardSockLayout(level) : level.items;
+  state.items = levelItems.map((item, index) => ({ ...item, index, w: 26, h: 26, collected: false, magnet: false, phase: index * 1.7 }));
   state.enemies = [];
   if (isGuard) {
     for (let index = 0; index < level.catches; index += 1) {
@@ -288,14 +299,14 @@ function initLevel() {
 
 function inputDown(action) { return CONTROLS[action].some((code) => keys.has(code)) || touchKeys.has(action); }
 function climbFor(entity) {
-  const sensor = { x: entity.x + entity.w * .25, y: entity.y - 2, w: entity.w * .5, h: entity.h + 5 };
+  const sensor = { x: entity.x + entity.w * .32, y: entity.y + 4, w: entity.w * .36, h: Math.max(8, entity.h - 8) };
   return state.level.climbs.find((climb) => overlaps(sensor, climb));
 }
 
 function supportSurface(entity) {
   const feet = entity.y + entity.h;
   return state.level.surfaces.find((surface) =>
-    entity.x + entity.w - 5 > surface.x && entity.x + 5 < surface.x + surface.w &&
+    entity.x + entity.w - 9 > surface.x && entity.x + 9 < surface.x + surface.w &&
     Math.abs(feet - surface.y) < 9
   );
 }
@@ -311,9 +322,9 @@ function pullOntoLedge(entity, direction) {
     return atLeftEdge || atRightEdge;
   });
   if (!ledge) return false;
-  entity.x = direction > 0 ? ledge.x + 5 : ledge.x + ledge.w - entity.w - 5;
+  entity.x = direction > 0 ? ledge.x + 12 : ledge.x + ledge.w - entity.w - 12;
   entity.y = ledge.y - entity.h; entity.vx *= .35; entity.vy = 0;
-  entity.onGround = true; entity.ledgePull = .24; entity.landSquash = .18;
+  entity.onGround = true; entity.ledgePull = .3; entity.landSquash = .18;
   if (entity === state.player) burst(entity.x + entity.w / 2, ledge.y, CHARACTERS[entity.id].color, 4);
   return true;
 }
@@ -330,9 +341,9 @@ function updateEntity(entity, dt, controls, speedScale = 1, isPlayer = false) {
   if (isPlayer && state.jumpBuffer > 0) { entity.jumpBuffer = state.jumpBuffer; state.jumpBuffer = Math.max(0, state.jumpBuffer - dt); }
   const dir = (controls.right ? 1 : 0) - (controls.left ? 1 : 0);
   const climb = climbFor(entity); const climbDir = (controls.down ? 1 : 0) - (controls.up ? 1 : 0);
-  if (climb && climbDir !== 0) entity.climbing = true;
+  if (climb && climbDir !== 0 && entity.ledgePull <= 0) entity.climbing = true;
   if (entity.climbing && !climb) entity.climbing = false;
-  if (entity.climbing && entity.jumpBuffer > 0) { entity.climbing = false; entity.vy = -character.jump * .78; entity.jumpBuffer = 0; state.jumpBuffer = 0; }
+  if (entity.climbing && entity.jumpBuffer > 0) { entity.climbing = false; entity.ledgePull = .18; entity.vy = -character.jump * .78; entity.jumpBuffer = 0; state.jumpBuffer = 0; }
 
   const targetVx = dir * character.speed * speedScale;
   const accel = character.acceleration * (entity.onGround ? 1 : .58) * speedScale;
@@ -348,8 +359,8 @@ function updateEntity(entity, dt, controls, speedScale = 1, isPlayer = false) {
         .filter((surface) => surface.type !== "floor" && Math.abs(surface.y - climb.y) < 70 && surface.x < climb.x + climb.w + 18 && surface.x + surface.w > climb.x - 18)
         .sort((a, b) => Math.abs(a.y - climb.y) - Math.abs(b.y - climb.y))[0];
       if (mount && entity.y + entity.h * .45 <= mount.y + 22) {
-        entity.climbing = false; entity.onGround = true; entity.vy = 0; entity.ledgePull = .24;
-        entity.x = clamp(entity.x, mount.x + 5, mount.x + mount.w - entity.w - 5);
+        entity.climbing = false; entity.onGround = true; entity.vy = 0; entity.ledgePull = .32;
+        entity.x = clamp(entity.x, mount.x + 12, mount.x + mount.w - entity.w - 12);
         entity.y = mount.y - entity.h;
       }
     }
@@ -371,7 +382,7 @@ function updateEntity(entity, dt, controls, speedScale = 1, isPlayer = false) {
     let landing = null;
     state.level.surfaces.forEach((surface) => {
       const nextBottom = entity.y + entity.h;
-      const horizontal = entity.x + entity.w - 5 > surface.x && entity.x + 5 < surface.x + surface.w;
+      const horizontal = entity.x + entity.w - 9 > surface.x && entity.x + 9 < surface.x + surface.w;
       if (horizontal && oldBottom <= surface.y + 5 && nextBottom >= surface.y && (!landing || surface.y < landing.y)) landing = surface;
     });
     if (landing) {
@@ -511,12 +522,18 @@ function chooseDracoRoamTarget(draco, forceDifferent = false) {
   draco.roamTarget = { x, y, surface: choice.surface.type, viaClimb: choice.surface.y < currentY - 155 ? choice.climbLink : null };
   draco.roamSurface = choice.index;
   draco.roamTimer = 3.1 + Math.abs(x - draco.x) / 175 + Math.abs(y - draco.y) / 130 + Math.random() * 1.8;
-  draco.roamSpeed = .32 + Math.random() * .22; draco.feintTimer = .65 + Math.random() * 1.7;
+  draco.roamSpeed = .3 + Math.random() * .25;
+  draco.roamPause = Math.random() < .32 ? .28 + Math.random() * .72 : 0;
+  draco.feintTimer = 1.1 + Math.random() * 2.4;
 }
 
 function keepDracoMoving(draco, dt) {
   draco.stuckCheckTimer -= dt;
   if (draco.stuckCheckTimer > 0) return;
+  if (draco.mode === "alert" || (draco.mode === "patrol" && draco.roamPause > 0)) {
+    draco.stuckX = draco.x; draco.stuckCheckTimer = .5 + Math.random() * .24;
+    return;
+  }
   const barelyMoved = Math.abs(draco.x - draco.stuckX) < 3;
   if (barelyMoved) {
     if (draco.mode === "patrol") chooseDracoRoamTarget(draco, true);
@@ -532,10 +549,16 @@ function updateDraco(draco, dt) {
   const visible = canSeePlayer(draco); const slowScale = state.slowTimer > 0 ? .48 : 1;
   const controls = { jumpHeld: true };
   if (visible) {
-    draco.lastSeenX = state.player.x; draco.lastSeenY = state.player.y;
+    const firstNotice = draco.mode === "patrol";
+    if (firstNotice || draco.mode === "chase") {
+      draco.lastSeenX = state.player.x; draco.lastSeenY = state.player.y;
+    }
     draco.suspicion = clamp(draco.suspicion + dt * (draco.mode === "chase" ? 2.5 : 1.25), 0, 1);
-    if (draco.suspicion >= 1) { draco.mode = "chase"; draco.memory = 4; }
-    else if (draco.mode === "patrol") { draco.mode = "alert"; draco.searchTimer = 1.8; }
+    if (draco.suspicion >= 1) {
+      draco.mode = "chase"; draco.lastSeenX = state.player.x; draco.lastSeenY = state.player.y; draco.memory = 4;
+    } else if (firstNotice) {
+      draco.mode = "alert"; draco.searchTimer = .9 + Math.random() * .55;
+    }
   } else if (draco.mode !== "chase") draco.suspicion = Math.max(0, draco.suspicion - dt * .23);
 
   if (state.decoy) {
@@ -544,28 +567,29 @@ function updateDraco(draco, dt) {
 
   if (draco.mode === "patrol") {
     if (!draco.roamTarget) chooseDracoRoamTarget(draco);
-    draco.roamTimer -= dt; draco.feintTimer -= dt;
+    draco.roamTimer -= dt; draco.feintTimer -= dt; draco.roamPause = Math.max(0, draco.roamPause - dt);
     let dx = draco.roamTarget.x - draco.x; let dy = draco.roamTarget.y - draco.y;
     const arrived = Math.abs(dx) < 20 && Math.abs(dy) < 28;
     if (arrived || draco.roamTimer <= 0) { chooseDracoRoamTarget(draco, true); dx = draco.roamTarget.x - draco.x; dy = draco.roamTarget.y - draco.y; }
     if (draco.feintTimer <= 0 && !draco.climbing) {
-      if (Math.random() < .38) chooseDracoRoamTarget(draco, true);
-      else { draco.face *= -1; draco.roamSpeed = .3 + Math.random() * .25; }
-      draco.feintTimer = .65 + Math.random() * 1.8; dx = draco.roamTarget.x - draco.x; dy = draco.roamTarget.y - draco.y;
+      if (Math.random() < .58) chooseDracoRoamTarget(draco, true);
+      else draco.roamPause = .25 + Math.random() * .7;
+      draco.feintTimer = 1.1 + Math.random() * 2.4; dx = draco.roamTarget.x - draco.x; dy = draco.roamTarget.y - draco.y;
     }
     const climb = draco.roamTarget.viaClimb;
-    if (draco.climbing) controls.up = true;
-    else if (climb && dy < -70) {
-      const climbDx = climb.x + climb.w / 2 - (draco.x + draco.w / 2);
-      controls.left = climbDx < -7; controls.right = climbDx > 7; controls.up = Math.abs(climbDx) <= 10;
-    } else { controls.left = dx < -8; controls.right = dx > 8; }
-    if (!climb && dy < -42 && draco.onGround && draco.aiJump <= 0) { draco.jumpBuffer = .12; draco.aiJump = .85 + Math.random() * .55; }
-    draco.aiJump -= dt; updateEntity(draco, dt, controls, draco.roamSpeed * slowScale);
+    if (draco.roamPause <= 0) {
+      if (draco.climbing) controls.up = true;
+      else if (climb && dy < -70) {
+        const climbDx = climb.x + climb.w / 2 - (draco.x + draco.w / 2);
+        controls.left = climbDx < -7; controls.right = climbDx > 7; controls.up = Math.abs(climbDx) <= 10;
+      } else { controls.left = dx < -8; controls.right = dx > 8; }
+      if (!climb && dy < -42 && draco.onGround && draco.aiJump <= 0) { draco.jumpBuffer = .12; draco.aiJump = .85 + Math.random() * .55; }
+    }
+    draco.aiJump -= dt; updateEntity(draco, dt, controls, (draco.roamPause > 0 ? .08 : draco.roamSpeed) * slowScale);
   } else if (draco.mode === "alert") {
-    draco.searchTimer -= dt; let dx = draco.lastSeenX - draco.x; draco.face = Math.sign(dx || draco.face);
-    if (Math.abs(dx) <= 34) { draco.searchSide *= -1; dx = draco.searchSide * (48 + Math.random() * 36); }
-    controls.left = dx < 0; controls.right = dx > 0;
-    updateEntity(draco, dt, controls, .34 * slowScale);
+    draco.searchTimer -= dt;
+    const dx = draco.lastSeenX - draco.x; draco.face = Math.sign(dx || draco.face);
+    updateEntity(draco, dt, controls, .08 * slowScale);
     if (draco.suspicion >= 1) { draco.mode = "chase"; draco.memory = 4; }
     else if (draco.searchTimer <= 0 && !visible) { draco.mode = "search"; draco.searchTimer = 3.4; }
   } else if (draco.mode === "chase") {
@@ -583,7 +607,7 @@ function updateDraco(draco, dt) {
     if (Math.abs(targetX - draco.x) < 14) draco.searchSide *= -1;
     controls.left = targetX < draco.x; controls.right = targetX > draco.x;
     updateEntity(draco, dt, controls, .48 * slowScale);
-    if (visible) { draco.suspicion = clamp(draco.suspicion + dt * 2, 0, 1); if (draco.suspicion >= 1) { draco.mode = "chase"; draco.memory = 4; } }
+    if (visible) { draco.suspicion = clamp(draco.suspicion + dt * 2, 0, 1); if (draco.suspicion >= 1) { draco.mode = "chase"; draco.lastSeenX = state.player.x; draco.lastSeenY = state.player.y; draco.memory = 4; } }
     if (draco.searchTimer <= 0) { draco.mode = "patrol"; draco.suspicion = 0; chooseDracoRoamTarget(draco, true); }
   }
 
@@ -646,7 +670,7 @@ function chooseThiefRoamTarget(thief, forceDifferent = false) {
   };
   thief.roamSurface = choice.index;
   thief.roamTimer = 2.5 + Math.abs(x - thief.x) / 190 + Math.random() * 2.2;
-  thief.roamSpeed = .48 + Math.random() * .2;
+  thief.roamSpeed = .4 + Math.random() * .15;
 }
 
 function leaveThiefHideSpot(thief, startled = false) {
@@ -697,6 +721,7 @@ function useThiefAiAbility(thief, threatDistance) {
 function updateThiefAi(enemy, dt) {
   if (!enemy.active || !state.running) return;
   enemy.aiTimer -= dt; enemy.aiJump -= dt; enemy.decisionTimer -= dt; enemy.abilityCooldown -= dt;
+  enemy.lootCooldown = Math.max(0, enemy.lootCooldown - dt);
   enemy.invisible = Math.max(0, enemy.invisible - dt); enemy.boostTimer = Math.max(0, enemy.boostTimer - dt);
   const threatDistance = distance(enemy, state.player);
 
@@ -737,7 +762,7 @@ function updateThiefAi(enemy, dt) {
   const sockNeedsJump = targetSock && Math.abs(targetSock.x - (enemy.x + enemy.w / 2)) < 74 && targetSock.y < enemy.y + enemy.h * .3;
   if (sockNeedsJump && enemy.onGround && enemy.aiJump <= 0) { enemy.jumpBuffer = .12; enemy.aiJump = .75 + Math.random() * .45; }
   if (!climb && dy < -38 && enemy.onGround && enemy.aiJump <= 0) { enemy.jumpBuffer = .12; enemy.aiJump = .7 + Math.random() * .7; }
-  const speed = (threatDistance < 320 ? .88 : enemy.roamSpeed) * (enemy.boostTimer > 0 ? 1.28 : 1);
+  const speed = (threatDistance < 320 ? .76 : enemy.roamSpeed) * (enemy.boostTimer > 0 ? 1.18 : 1);
   updateEntity(enemy, dt, controls, speed);
 
   enemy.stuckCheckTimer -= dt;
@@ -752,7 +777,7 @@ function updateThiefAi(enemy, dt) {
   if (!enemy.hidden && enemy.invisible <= 0 && overlaps(state.player, enemy, 5)) catchEnemy(enemy);
   if (!enemy.active || !state.running) return;
   const sock = state.items.find((item) => item.kind === "sock" && !item.collected && overlaps(enemy, { x: item.x - 13, y: item.y - 13, w: 26, h: 26 }, 2));
-  if (sock) stealSock(enemy, sock);
+  if (sock && enemy.lootCooldown <= 0) stealSock(enemy, sock);
 }
 
 function updateEnemies(dt) {
@@ -825,7 +850,7 @@ function sockGoalText(count) { return count === 1 ? "the last sock" : `all ${cou
 
 function stealSock(thief, item) {
   if (item.collected || !thief.active || !state.running) return;
-  item.collected = true; state.collected += 1;
+  item.collected = true; state.collected += 1; thief.lootCooldown = 6.5 + Math.random() * 3.5;
   state.enemies.forEach((enemy) => { if (enemy.lootTarget === item.index) enemy.lootTarget = -1; });
   burst(item.x, item.y, CHARACTERS[thief.id].color, 14);
   showHint(`${CHARACTERS[thief.id].name} stole a sock · ${state.collected}/${guardSockTotal()}`, 1.8);
@@ -1170,6 +1195,21 @@ function playAmbience(track) {
   ambienceAudio.play().catch(() => { /* A user gesture may be required by the browser. */ });
 }
 
+function maintainSeamlessAmbienceLoop() {
+  if (ambienceAudio.paused || !Number.isFinite(ambienceAudio.duration) || ambienceAudio.duration <= 0) return;
+  const configuredEnd = AMBIENCE_LOOP_ENDS.get(ambienceAudio.dataset.track);
+  const loopAt = configuredEnd ?? Math.max(0, ambienceAudio.duration - .075);
+  if (ambienceAudio.currentTime < loopAt) return;
+  ambienceAudio.currentTime = 0;
+  ambienceAudio.play().catch(() => { /* A user gesture may be required by the browser. */ });
+}
+
+function unlockAudio(event) {
+  if (event?.target?.closest?.("#introMusicBtn")) return;
+  if (event?.type === "keydown" && CONTROLS.music.includes(event.code)) return;
+  if (!state.muted) syncAudioForContext();
+}
+
 function syncAudioForContext() {
   if (introMusicAllowed() && !state.muted) playTheme();
   else stopTheme(state.screen !== "loading" && state.screen !== "start");
@@ -1193,6 +1233,7 @@ function toggleMusic() {
 
 function frame(now) {
   const delta = Math.min(.05, (now - lastFrame) / 1000); lastFrame = now;
+  maintainSeamlessAmbienceLoop();
   if (state.running && !state.paused) {
     accumulator += delta; let steps = 0;
     while (accumulator >= GAME.fixedStep && steps < 8) { update(GAME.fixedStep); accumulator -= GAME.fixedStep; steps += 1; }
@@ -1202,6 +1243,8 @@ function frame(now) {
 }
 
 function bindEvents() {
+  window.addEventListener("pointerdown", unlockAudio, { capture: true, once: true });
+  window.addEventListener("keydown", unlockAudio, { capture: true, once: true });
   $("#startBtn").addEventListener("click", () => showScreen("select"));
   $("#rulesBtn").addEventListener("click", openRules); $("#rulesHudBtn").addEventListener("click", openRules); $("#briefingRulesBtn").addEventListener("click", openRules);
   $("#closeRulesBtn").addEventListener("click", closeRules); dom.rules.addEventListener("click", (event) => { if (event.target === dom.rules) closeRules(); });

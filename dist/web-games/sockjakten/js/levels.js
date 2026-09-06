@@ -33,6 +33,10 @@ export const LEVELS = [
     ],
     noiseZones: [{ x: 720, y: 586, w: 120, h: 14, label: "creaking floor" }],
     hazards: [],
+    guardSocks: [
+     { x: 83, y: 415 }, { x: 430, y: 420 }, { x: 664, y: 370 },
+     { x: 875, y: 443 }, { x: 1194, y: 334 },
+   ],
     items: [
       { x: 83, y: 415, kind: "sock" }, { x: 430, y: 420, kind: "sock" },
       { x: 664, y: 370, kind: "sock" }, { x: 875, y: 443, kind: "sock" },
@@ -76,6 +80,10 @@ export const LEVELS = [
     ],
     noiseZones: [{ x: 620, y: 589, w: 115, h: 14, label: "wet tile" }],
     hazards: [{ x: 705, y: 309, w: 66, h: 12, kind: "steam" }],
+    guardSocks: [
+      { x: 95, y: 265 }, { x: 250, y: 377 }, { x: 465, y: 291 },
+      { x: 733, y: 291 }, { x: 905, y: 365 }, { x: 975, y: 210 },
+    ],
     items: [
       { x: 95, y: 265, kind: "sock" }, { x: 250, y: 377, kind: "sock" },
       { x: 465, y: 291, kind: "button" }, { x: 733, y: 291, kind: "sock" },
@@ -126,7 +134,13 @@ export const LEVELS = [
       { x: 885, y: 588, w: 90, h: 14, label: "loose floorboard" },
     ],
     hazards: [],
+    guardSocks: [
+      { x: 88, y: 451 }, { x: 350, y: 418 }, { x: 613, y: 354 },
+      { x: 695, y: 262 }, { x: 885, y: 426 }, { x: 1050, y: 477 },
+      { x: 1175, y: 295 },
+    ],
     items: [
+      { x: 88, y: 451, kind: "key" },
       { x: 88, y: 451, kind: "key" }, { x: 350, y: 418, kind: "remote" },
       { x: 613, y: 354, kind: "button" }, { x: 695, y: 262, kind: "sock" },
       { x: 885, y: 426, kind: "clip" }, { x: 1050, y: 477, kind: "sock" },
@@ -168,10 +182,15 @@ export const LEVELS = [
     ],
     noiseZones: [{ x: 510, y: 577, w: 135, h: 14, label: "rattling cutlery" }],
     hazards: [
-      { x: 1040, y: 419, w: 62, h: 12, kind: "steam" },
-      { x: 1135, y: 387, w: 78, h: 12, kind: "hot" },
-    ],
-    items: [
+  { x: 1040, y: 419, w: 62, h: 12, kind: "steam" },
+  { x: 1135, y: 387, w: 78, h: 12, kind: "hot" },
+],
+guardSocks: [
+  { x: 100, y: 195 }, { x: 190, y: 415 }, { x: 400, y: 315 },
+  { x: 570, y: 315 }, { x: 690, y: 315 }, { x: 820, y: 402 },
+  { x: 910, y: 228 }, { x: 1190, y: 370 },
+],
+items: [
       { x: 100, y: 195, kind: "button" }, { x: 190, y: 415, kind: "sock" },
       { x: 400, y: 315, kind: "spoon" }, { x: 690, y: 315, kind: "key" },
       { x: 820, y: 402, kind: "clip" }, { x: 910, y: 228, kind: "spool" },
