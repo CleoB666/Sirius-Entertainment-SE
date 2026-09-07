@@ -427,7 +427,9 @@ function initLevel() {
     true,
   );
 
-  enemy.lootCooldown = Math.max(3.8, 5.25 - difficultyStep() * .38) + Math.random() * 3;
+  enemy.lootCooldown =
+  Math.max(3.6, 5 - difficultyStep() * .4) +
+  Math.random() * 2.8;
 
   state.enemies.push(enemy);
   chooseThiefRoamTarget(enemy, true);
@@ -1093,7 +1095,12 @@ function tryThiefHide(thief, threatDistance) {
     .map((spot) => ({ spot, gap: Math.hypot((spot.x + spot.w / 2) - thief.x, (spot.y + spot.h / 2) - thief.y) }))
     .filter(({ gap }) => gap < 235)
     .sort((a, b) => a.gap - b.gap);
-  if (!spots.length || Math.random() > .38 + difficultyStep() * .05) return false;
+  if (
+  !spots.length ||
+  Math.random() > .41 + difficultyStep() * .05
+) {
+  return false;
+}
   const spot = spots[Math.min(spots.length - 1, Math.floor(Math.random() * 2))].spot;
   thief.hidden = true; thief.hideSpot = spot; thief.hideTimer = 1.4 + Math.random() * 2.25; thief.hideReveal = 0;
   thief.vx = 0; thief.vy = 0; thief.climbing = false;
@@ -1175,9 +1182,9 @@ function updateThiefAi(enemy, dt) {
   if (sockNeedsJump && enemy.onGround && enemy.aiJump <= 0) { enemy.jumpBuffer = .12; enemy.aiJump = .75 + Math.random() * .45; }
   if (!climb && dy < -38 && enemy.onGround && enemy.aiJump <= 0) { enemy.jumpBuffer = .12; enemy.aiJump = .7 + Math.random() * .7; }
   const speed =
-  (threatDistance < 320 ? .76 : enemy.roamSpeed) *
-  (enemy.boostTimer > 0 ? 1.18 : 1) *
-  (1 + difficultyStep() * .05);
+  (threatDistance < 320 ? .79 : enemy.roamSpeed) *
+  (enemy.boostTimer > 0 ? 1.2 : 1) *
+  (1 + difficultyStep() * .06);
   updateEntity(enemy, dt, controls, speed);
 
   enemy.stuckCheckTimer -= dt;
@@ -1274,11 +1281,8 @@ function stealSock(thief, item) {
   state.collected += 1;
 
   thief.lootCooldown =
-    Math.max(
-      4.7,
-      6.3 - difficultyStep() * .45,
-    ) +
-    Math.random() * 3;
+  Math.max(4.4, 5.9 - difficultyStep() * .42) +
+  Math.random() * 2.8;
 
   state.enemies.forEach((enemy) => {
     if (enemy.lootTarget === item.index) {

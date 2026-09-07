@@ -112,7 +112,7 @@ export const LEVELS = [
   {
     id: "living", number: 3, name: "Living Room", title: "Between the Cushions",
     tagline: "Tiny treasures are everywhere. So are the shadows.",
-    background: "assets/room-laundry.webp", music: "assets/AmbienceTTHCLaundry.mp3", floorY: 603, time: 115, catches: 4,
+    background: "assets/room-living-v2.webp", music: "assets/AmbienceTTHCLivingroom.mp3", floorY: 602, time: 120, catches: 4,
     thiefStory: "Climb across the machines, search the baskets and avoid the patches of floor that reveal your footsteps.",
     guardStory: "Someone has been digging through the laundry baskets. Search the room and stop the Crew before the door opens.",
     rulesTip: "The sofa, bookshelf, armchair and TV cabinet create several connected routes. Nearby usable edges and hiding places glow; the rug and loose floorboard reveal fast movement.",
