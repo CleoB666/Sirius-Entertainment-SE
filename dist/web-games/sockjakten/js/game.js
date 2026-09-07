@@ -217,30 +217,122 @@ function updateRulesContext() {
   const level = LEVELS[state.levelIndex] || LEVELS[0];
   const character = CHARACTERS[state.selectedId];
   const isGuard = state.selectedId === "draco";
+  const completeGuide =
+    state.screen === "start" ||
+    state.screen === "loading";
+
   const sockCount = guardSockLayout(level).length;
 
-  $("#rulesCharacter").textContent = `${character.name} · ${character.role}`;
-  $("#rulesLevel").textContent = `${level.name} · Difficulty ${level.number}/${LEVELS.length}`;
+  dom.rules.classList.toggle("complete-guide", completeGuide);
 
-  $("#rulesObjective").textContent = isGuard
-    ? `Catch ${level.catches} thieves before they steal all ${sockCount} protected socks.`
-    : `Collect ${level.items.length} loot items within ${level.time} seconds, then reach ${level.exit.label}.`;
+  $("#rulesCharacter").textContent = completeGuide
+    ? "The Tiny Heist Crew or Draco"
+    : `${character.name} · ${character.role}`;
 
-  $("#rulesLevelTip").textContent = level.rulesTip;
-  $("#thiefRulesArticle").classList.toggle("hidden", isGuard);
-  $("#guardRulesArticle").classList.toggle("hidden", !isGuard);
-  $("#hideControlRule").classList.toggle("hidden", isGuard);
-  $("#briefingHideControl").classList.toggle("hidden", isGuard);
-  $(".stealth-rules").classList.toggle("hidden", isGuard);
+  $("#rulesLevel").textContent = completeGuide
+    ? "Bedroom · Laundry Room · Living Room · Kitchen"
+    : `${level.name} · Difficulty ${level.number}/${LEVELS.length}`;
+
+  $("#rulesObjective").textContent = completeGuide
+    ? "Steal every item and escape as the Crew, or protect the socks and catch every thief as Draco."
+    : isGuard
+      ? `Catch ${level.catches} thieves before they steal all ${sockCount} protected socks.`
+      : `Collect ${level.items.length} loot items within ${level.time} seconds, then reach ${level.exit.label}.`;
+
+  $("#rulesLevelTip").textContent = completeGuide
+    ? "Each room is a physical route through its furniture, fabric, handles and hiding places. Later levels give both sides faster reactions and more difficult objectives."
+    : level.rulesTip;
+
+  $("#thiefRulesArticle").classList.toggle(
+    "hidden",
+    !completeGuide && isGuard
+  );
+
+  $("#guardRulesArticle").classList.toggle(
+    "hidden",
+    !completeGuide && !isGuard
+  );
+
+  $("#hideControlRule").classList.toggle(
+    "hidden",
+    !completeGuide && isGuard
+  );
+
+  $("#briefingHideControl").classList.toggle(
+    "hidden",
+    isGuard
+  );
+
+  $(".stealth-rules").classList.toggle(
+    "hidden",
+    !completeGuide && isGuard
+  );
+
+  const levelRules = $("#levelRules");
+  levelRules.textContent = "";
+
+  LEVELS.forEach((listedLevel, index) => {
+    const listedSocks = guardSockLayout(listedLevel).length;
+    const card = document.createElement("article");
+
+    card.className =
+      `level-rule ${!completeGuide && index === state.levelIndex ? "active" : ""}`;
+
+    card.innerHTML = `
+      <small>
+        LEVEL ${listedLevel.number} ·
+        DIFFICULTY ${listedLevel.number}/${LEVELS.length}
+      </small>
+
+      <strong>${listedLevel.name}</strong>
+
+      <span>
+        CREW · ${listedLevel.items.length} items ·
+        ${listedLevel.time} seconds
+      </span>
+
+      <span>
+        DRACO · ${listedLevel.catches} thieves ·
+        ${listedSocks} socks to protect
+      </span>
+
+      <p>${listedLevel.rulesTip}</p>
+    `;
+
+    levelRules.append(card);
+  });
 
   const abilityRules = $("#abilityRules");
   abilityRules.textContent = "";
 
-  const rule = document.createElement("div");
-  rule.className = "ability-rule";
-  rule.style.setProperty("--ability-color", character.color);
-  rule.innerHTML = `<strong>${character.name} · ${character.ability}</strong><span>${character.abilityText}</span>`;
-  abilityRules.append(rule);
+  $("#abilityRulesTitle").textContent = completeGuide
+    ? "Character abilities"
+    : "Selected ability";
+
+  const ruleIds = completeGuide
+    ? CHARACTER_ORDER
+    : [state.selectedId];
+
+  ruleIds.forEach((id) => {
+    const listedCharacter = CHARACTERS[id];
+    const rule = document.createElement("div");
+
+    rule.className = "ability-rule";
+    rule.style.setProperty(
+      "--ability-color",
+      listedCharacter.color
+    );
+
+    rule.innerHTML = `
+      <strong>
+        ${listedCharacter.name} · ${listedCharacter.ability}
+      </strong>
+
+      <span>${listedCharacter.abilityText}</span>
+    `;
+
+    abilityRules.append(rule);
+  });
 }
 
 function selectCharacter(id) {
@@ -248,7 +340,8 @@ function selectCharacter(id) {
   $("#chosenRole").textContent = character.roleShort;
   $("#chosenSummary").textContent = `${character.name}: ${character.abilityText}`;
   updateRulesContext();
-  buildLevelCards(); showScreen("levels");
+  buildLevelCards();
+  showScreen("levels");
 }
 
 function buildLevelCards() {
@@ -575,9 +668,32 @@ function queueJump() {
 }
 
 function nearbyHideSpot() {
-  if (!state.player || state.selectedId === "draco") return null;
-  const expanded = { x: state.player.x - 34, y: state.player.y - 25, w: state.player.w + 68, h: state.player.h + 50 };
-  return state.level.hideSpots.find((spot) => overlaps(expanded, spot));
+  if (!state.player || state.selectedId === "draco") {
+    return null;
+  }
+
+  const expanded = {
+    x: state.player.x - 50,
+    y: state.player.y - 35,
+    w: state.player.w + 100,
+    h: state.player.h + 70,
+  };
+
+  return state.level.hideSpots
+    .filter((spot) => overlaps(expanded, spot))
+    .sort((a, b) => {
+      const aDistance = Math.abs(
+        (a.x + a.w / 2) -
+        (state.player.x + state.player.w / 2)
+      );
+
+      const bDistance = Math.abs(
+        (b.x + b.w / 2) -
+        (state.player.x + state.player.w / 2)
+      );
+
+      return aDistance - bDistance;
+    })[0] || null;
 }
 
 function toggleHide() {
@@ -1305,136 +1421,431 @@ function drawBackdrop() {
 }
 
 function drawRoomCues() {
-  const playerCenter = state.player.x + state.player.w / 2;
-  const playerFeet = state.player.y + state.player.h;
-  const furniture = state.level.surfaces.filter((surface) => surface.type !== "floor");
-  const nearestSurface = furniture.reduce((nearest, surface) => {
-  const bounds = walkableSurfaceBounds(surface);
-  const horizontalGap = playerCenter < bounds.left ? bounds.left - playerCenter : playerCenter > bounds.right ? playerCenter - bounds.right : 0;
-  const score = horizontalGap + Math.abs(playerFeet - surface.y) * .55;
-  return !nearest || score < nearest.score ? { surface, bounds, score } : nearest;
-}, null);
-furniture.forEach((surface) => {
-  const bounds = walkableSurfaceBounds(surface);
-  const active = nearestSurface?.surface === surface && nearestSurface.score < 165;
-  ctx.globalAlpha = active ? .88 : .3; ctx.strokeStyle = active ? "#b8f1ff" : "#82bed0"; ctx.lineWidth = active ? 3 : 1.5;
-  ctx.beginPath(); ctx.moveTo(bounds.left, surface.y); ctx.lineTo(bounds.right, surface.y); ctx.stroke();
-  ctx.fillStyle = active ? "#dcf8ff" : "#82bed0";
-  for (const edgeX of [bounds.left, bounds.right]) {
-    ctx.beginPath(); ctx.arc(edgeX, surface.y, active ? 3.5 : 2, 0, Math.PI * 2); ctx.fill();
-  }
-});
-  if (nearestSurface && nearestSurface.score < 165 && nearestSurface.surface.label) {
-    const surface = nearestSurface.surface; const labelX = clamp(playerCenter, surface.x + 62, surface.x + surface.w - 62);
-    ctx.globalAlpha = .92; ctx.fillStyle = "rgba(4,13,22,.88)"; ctx.fillRect(labelX - 62, surface.y - 28, 124, 20);
-    ctx.fillStyle = "#d9f7ff"; ctx.font = "900 10px system-ui"; ctx.textAlign = "center";
-    ctx.fillText(`JUMP/LAND · ${surface.label.toUpperCase()}`, labelX, surface.y - 14);
-  }
-  state.level.climbs.forEach((climb) => {
-    const near = Math.abs(playerCenter - (climb.x + climb.w / 2)) <= 105;
-    ctx.globalAlpha = near ? .75 : .2; ctx.strokeStyle = near ? "#9be7ff" : "#67aabc"; ctx.lineWidth = near ? 3 : 1.5; ctx.setLineDash([5, 7]);
-    ctx.beginPath(); ctx.moveTo(climb.x + climb.w / 2, climb.y); ctx.lineTo(climb.x + climb.w / 2, climb.y + climb.h); ctx.stroke(); ctx.setLineDash([]);
-    if (!near) return;
-    ctx.fillStyle = "rgba(5,14,23,.88)"; ctx.fillRect(climb.x - 8, climb.y - 25, Math.max(90, climb.w + 30), 20);
-    ctx.fillStyle = "#bdeeff"; ctx.font = "800 10px system-ui"; ctx.textAlign = "left"; ctx.fillText("W/S  CLIMB", climb.x, climb.y - 11);
-  });
-  const nearbySpot =
-  state.selectedId !== "draco" && !state.hidden
-    ? nearbyHideSpot()
-    : null;
+  const playerCenter =
+    state.player.x + state.player.w / 2;
 
-state.level.hideSpots.forEach((spot) => {
-  const active = spot === nearbySpot;
-  const guardView = state.selectedId === "draco";
+  const playerFeet =
+    state.player.y + state.player.h;
 
-  ctx.save();
-
-  ctx.globalAlpha =
-    active
-      ? .86
-      : guardView
-        ? .34
-        : .26;
-
-  ctx.fillStyle =
-    active
-      ? "rgba(104,46,126,.24)"
-      : "rgba(49,22,63,.14)";
-
-  ctx.strokeStyle =
-    active
-      ? "#e6b6f6"
-      : "#b77acb";
-
-  ctx.lineWidth = active ? 3 : 2;
-  ctx.setLineDash(active ? [] : [8, 7]);
-
-  ctx.fillRect(
-    spot.x,
-    spot.y,
-    spot.w,
-    spot.h,
+  const furniture = state.level.surfaces.filter(
+    (surface) => surface.type !== "floor"
   );
 
-  ctx.strokeRect(
-    spot.x,
-    spot.y,
-    spot.w,
-    spot.h,
+  /*
+   * Find only the closest usable furniture surface.
+   * The room image remains the visible level.
+   * No permanent platform outlines are drawn.
+   */
+  const nearestSurface = furniture.reduce(
+    (nearest, surface) => {
+      const bounds = walkableSurfaceBounds(surface);
+
+      const horizontalGap =
+        playerCenter < bounds.left
+          ? bounds.left - playerCenter
+          : playerCenter > bounds.right
+            ? playerCenter - bounds.right
+            : 0;
+
+      const score =
+        horizontalGap +
+        Math.abs(playerFeet - surface.y) * .55;
+
+      return !nearest || score < nearest.score
+        ? { surface, bounds, score }
+        : nearest;
+    },
+    null
   );
 
-  ctx.setLineDash([]);
+  /*
+   * A soft local light appears on the closest furniture
+   * edge only when the player is close enough.
+   */
+  if (nearestSurface && nearestSurface.score < 145) {
+    const { surface, bounds, score } = nearestSurface;
 
-  const shortLabel =
-    guardView
-      ? "SEARCH"
-      : active
-        ? coarsePointer.matches
+    const pulse =
+      .72 + Math.sin(state.elapsed * 4.2) * .16;
+
+    const glow = ctx.createLinearGradient(
+      bounds.left,
+      surface.y,
+      bounds.right,
+      surface.y
+    );
+
+    glow.addColorStop(0, "rgba(120,220,246,0)");
+    glow.addColorStop(
+      .18,
+      `rgba(150,230,250,${.18 * pulse})`
+    );
+    glow.addColorStop(
+      .5,
+      `rgba(218,248,255,${.34 * pulse})`
+    );
+    glow.addColorStop(
+      .82,
+      `rgba(150,230,250,${.18 * pulse})`
+    );
+    glow.addColorStop(1, "rgba(120,220,246,0)");
+
+    ctx.save();
+    ctx.globalCompositeOperation = "screen";
+    ctx.shadowColor = "rgba(120,220,246,.65)";
+    ctx.shadowBlur = 24;
+    ctx.fillStyle = glow;
+
+    ctx.fillRect(
+      bounds.left,
+      surface.y - 7,
+      Math.max(1, bounds.right - bounds.left),
+      14
+    );
+
+    ctx.restore();
+
+    if (score < 105 && surface.label) {
+      const action =
+        playerFeet > surface.y + 35
+          ? "JUMP"
+          : "ROUTE";
+
+      const label =
+        `${action} · ${surface.label.toUpperCase()}`;
+
+      ctx.save();
+      ctx.font = "900 10px system-ui";
+
+      const tagWidth = Math.min(
+        190,
+        ctx.measureText(label).width + 22
+      );
+
+      const labelX = clamp(
+        playerCenter,
+        tagWidth / 2 + 8,
+        GAME.width - tagWidth / 2 - 8
+      );
+
+      ctx.fillStyle = "rgba(4,13,22,.76)";
+
+      ctx.fillRect(
+        labelX - tagWidth / 2,
+        surface.y - 29,
+        tagWidth,
+        20
+      );
+
+      ctx.fillStyle = "#d9f7ff";
+      ctx.textAlign = "center";
+
+      ctx.fillText(
+        label,
+        labelX,
+        surface.y - 15
+      );
+
+      ctx.restore();
+    }
+  }
+
+  /*
+   * Find the closest fabric, handle, pipe or other
+   * climbable part of the actual room.
+   */
+  const nearestClimb = state.level.climbs.reduce(
+    (nearest, climb) => {
+      const center = climb.x + climb.w / 2;
+
+      const verticalGap =
+        playerFeet < climb.y
+          ? climb.y - playerFeet
+          : playerFeet > climb.y + climb.h
+            ? playerFeet - (climb.y + climb.h)
+            : 0;
+
+      const score =
+        Math.abs(playerCenter - center) +
+        verticalGap * .55;
+
+      return !nearest || score < nearest.score
+        ? { climb, center, score }
+        : nearest;
+    },
+    null
+  );
+
+  /*
+   * The climbable object glows only while nearby.
+   */
+  if (nearestClimb && nearestClimb.score < 105) {
+    const { climb, center, score } = nearestClimb;
+
+    const pulse =
+      .68 + Math.sin(state.elapsed * 4.8) * .14;
+
+    const glow = ctx.createRadialGradient(
+      center,
+      playerFeet,
+      4,
+      center,
+      playerFeet,
+      Math.max(70, climb.w * 1.8)
+    );
+
+    glow.addColorStop(
+      0,
+      `rgba(132,222,248,${.3 * pulse})`
+    );
+
+    glow.addColorStop(
+      1,
+      "rgba(132,222,248,0)"
+    );
+
+    ctx.save();
+    ctx.globalCompositeOperation = "screen";
+    ctx.fillStyle = glow;
+
+    ctx.fillRect(
+      climb.x - 36,
+      climb.y,
+      climb.w + 72,
+      climb.h
+    );
+
+    ctx.restore();
+
+    if (score < 76) {
+      const label = coarsePointer.matches
+        ? "↑↓  CLIMB"
+        : "W/S  CLIMB";
+
+      const labelY = clamp(
+        playerFeet - 55,
+        climb.y + 20,
+        climb.y + climb.h - 10
+      );
+
+      ctx.save();
+      ctx.fillStyle = "rgba(5,14,23,.78)";
+
+      ctx.fillRect(
+        center - 47,
+        labelY - 15,
+        94,
+        20
+      );
+
+      ctx.fillStyle = "#bdeeff";
+      ctx.font = "900 10px system-ui";
+      ctx.textAlign = "center";
+
+      ctx.fillText(
+        label,
+        center,
+        labelY - 1
+      );
+
+      ctx.restore();
+    }
+  }
+
+  /*
+   * Calculate the closest hiding place without
+   * drawing any permanent rectangle around it.
+   */
+  const hideCandidates = state.level.hideSpots
+    .map((spot) => {
+      const dx = Math.max(
+        spot.x - playerCenter,
+        0,
+        playerCenter - (spot.x + spot.w)
+      );
+
+      const dy = Math.max(
+        spot.y - playerFeet,
+        0,
+        playerFeet - (spot.y + spot.h)
+      );
+
+      return {
+        spot,
+        gap: Math.hypot(dx, dy),
+      };
+    })
+    .sort((a, b) => a.gap - b.gap);
+
+  const closestHide = hideCandidates[0];
+
+  const usableHide =
+    state.selectedId !== "draco" && !state.hidden
+      ? nearbyHideSpot()
+      : null;
+
+  const activeHide =
+    usableHide ||
+    (closestHide?.gap < 78
+      ? closestHide.spot
+      : null);
+
+  /*
+   * The hiding place gets a soft violet glow only
+   * when the player is close. No border is drawn.
+   */
+  if (activeHide && !state.hidden) {
+    const centerX =
+      activeHide.x + activeHide.w / 2;
+
+    const centerY =
+      activeHide.y + activeHide.h * .68;
+
+    const radius = Math.max(
+      70,
+      activeHide.w * .65
+    );
+
+    const pulse =
+      .72 + Math.sin(state.elapsed * 4.4) * .16;
+
+    const glow = ctx.createRadialGradient(
+      centerX,
+      centerY,
+      4,
+      centerX,
+      centerY,
+      radius
+    );
+
+    glow.addColorStop(
+      0,
+      `rgba(205,126,232,${.32 * pulse})`
+    );
+
+    glow.addColorStop(
+      .46,
+      `rgba(154,77,184,${.18 * pulse})`
+    );
+
+    glow.addColorStop(
+      1,
+      "rgba(111,53,132,0)"
+    );
+
+    ctx.save();
+    ctx.globalCompositeOperation = "screen";
+    ctx.fillStyle = glow;
+
+    ctx.fillRect(
+      centerX - radius,
+      centerY - radius,
+      radius * 2,
+      radius * 2
+    );
+
+    ctx.restore();
+
+    const action =
+      state.selectedId === "draco"
+        ? "SEARCH"
+        : coarsePointer.matches
           ? "HIDE"
-          : "Q  HIDE"
-        : "HIDE";
+          : "Q  HIDE";
 
-  const fullLabel =
-    active
-      ? `${shortLabel} · ${spot.label.toUpperCase()}`
-      : shortLabel;
+    const label =
+      `${action} · ${activeHide.label.toUpperCase()}`;
 
-  ctx.font = "900 10px system-ui";
+    ctx.save();
+    ctx.font = "900 10px system-ui";
 
-  const tagWidth = Math.min(
-    220,
-    Math.max(
-      52,
-      ctx.measureText(fullLabel).width + 18,
-    ),
-  );
+    const tagWidth = Math.min(
+      220,
+      Math.max(
+        70,
+        ctx.measureText(label).width + 20
+      )
+    );
 
-  const center = spot.x + spot.w / 2;
+    const labelX = clamp(
+      centerX,
+      tagWidth / 2 + 8,
+      GAME.width - tagWidth / 2 - 8
+    );
 
-  ctx.fillStyle = "rgba(15,6,20,.88)";
+    ctx.fillStyle = "rgba(15,6,20,.78)";
 
-  ctx.fillRect(
-    center - tagWidth / 2,
-    spot.y - 24,
-    tagWidth,
-    19,
-  );
+    ctx.fillRect(
+      labelX - tagWidth / 2,
+      activeHide.y - 24,
+      tagWidth,
+      19
+    );
 
-  ctx.fillStyle = "#efd1f8";
-  ctx.textAlign = "center";
+    ctx.fillStyle = "#efd1f8";
+    ctx.textAlign = "center";
 
-  ctx.fillText(
-    fullLabel,
-    center,
-    spot.y - 11,
-  );
+    ctx.fillText(
+      label,
+      labelX,
+      activeHide.y - 11
+    );
 
-  ctx.restore();
-});
+    ctx.restore();
+  }
+
+  /*
+   * Noise zones also remain hidden until the player
+   * is close enough to notice them.
+   */
   state.level.noiseZones.forEach((zone, index) => {
-    ctx.globalAlpha = .18 + Math.sin(state.elapsed * 3 + index) * .06; ctx.strokeStyle = "#f3b55c"; ctx.lineWidth = 2;
-    ctx.beginPath(); ctx.moveTo(zone.x, zone.y); ctx.lineTo(zone.x + zone.w * .35, zone.y - 3); ctx.lineTo(zone.x + zone.w * .65, zone.y + 2); ctx.lineTo(zone.x + zone.w, zone.y - 2); ctx.stroke();
-  }); ctx.globalAlpha = 1;
+    const close =
+      playerCenter > zone.x - 90 &&
+      playerCenter < zone.x + zone.w + 90 &&
+      Math.abs(playerFeet - zone.y) < 85;
+
+    if (!close) {
+      return;
+    }
+
+    const glow = ctx.createLinearGradient(
+      zone.x,
+      zone.y,
+      zone.x + zone.w,
+      zone.y
+    );
+
+    const alpha =
+      .13 + Math.sin(state.elapsed * 3 + index) * .035;
+
+    glow.addColorStop(
+      0,
+      "rgba(243,181,92,0)"
+    );
+
+    glow.addColorStop(
+      .5,
+      `rgba(243,181,92,${alpha})`
+    );
+
+    glow.addColorStop(
+      1,
+      "rgba(243,181,92,0)"
+    );
+
+    ctx.save();
+    ctx.globalCompositeOperation = "screen";
+    ctx.fillStyle = glow;
+
+    ctx.fillRect(
+      zone.x,
+      zone.y - 8,
+      zone.w,
+      16
+    );
+
+    ctx.restore();
+  });
 }
 
 function drawVision() {
@@ -1736,6 +2147,7 @@ function pauseGame() { if (!state.running) return; state.paused = true; keys.cle
 function resumeGame() { if (!state.running) return; state.paused = false; screens.pause.classList.remove("active"); state.screen = "game"; lastFrame = performance.now(); syncAudioForContext(); }
 function openRules() {
   updateRulesContext();
+
   state.pauseBeforeRules = state.paused;
 
   if (state.running) {

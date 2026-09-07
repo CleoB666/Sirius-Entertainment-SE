@@ -5,6 +5,7 @@ export const LEVELS = [
     background: "assets/room-bedroom.webp", music: "assets/AmbienceTTHCBedroom.mp3", floorY: 600, time: 110, catches: 3,
     thiefStory: "Sneak between the bed, dresser and wardrobe. Collect every sock, learn to read Draco's warning and hide before he spots you.",
     guardStory: "The sock drawer is open. Patrol the bedroom and catch the thieves before they reach the gap beneath the door.",
+    rulesTip: "Follow the room itself: floor to bed, bedspread to dresser, then fabric and wardrobe handles. Hiding places glow only when you are close enough to use them.",
     playerSpawn: { thief: [36, 530], guard: [1145, 500] },
     surfaces: [
       { x: 0, y: 600, w: 1280, h: 120, type: "floor" },
@@ -44,11 +45,23 @@ export const LEVELS = [
     ],
     exit: { x: 1230, y: 519, w: 38, h: 80, label: "the gap beneath the door" },
     tutorial: [
-      { x: 70, text: "Use A/D or ←/→ to sneak through the room" },
-      { x: 235, text: "Press SPACE to jump onto furniture" },
-      { x: 430, text: "Use W/S near fabric and handles to climb" },
-      { x: 610, text: "Press Q near dark hiding places – watch Draco's warning" },
-    ],
+  {
+    x: 70,
+    text: "Use A/D or ←/→ to sneak through the room"
+  },
+  {
+    x: 235,
+    text: "Nearby furniture edges glow softly when they form part of the route"
+  },
+  {
+    x: 430,
+    text: "Fabric and handles glow when you are close enough to climb"
+  },
+  {
+    x: 610,
+    text: "A hiding place glows only when you are close enough to enter"
+  },
+],
   },
   {
     id: "laundry", number: 2, name: "Laundry Room", title: "The Missing Pile",
@@ -56,6 +69,7 @@ export const LEVELS = [
     background: "assets/room-laundry.webp", music: "assets/AmbienceTTHCLaundry.mp3", floorY: 603, time: 120, catches: 4,
     thiefStory: "Climb across the machines, search the baskets and avoid the patches of floor that reveal your footsteps.",
     guardStory: "Someone has been digging through the laundry baskets. Search the room and stop the Crew before the door opens.",
+    rulesTip: "Cross the sink, machines and counter as one connected room route. Use the towel, machine side and pipes when they glow; avoid the orange steam.",
     playerSpawn: { thief: [30, 530], guard: [1170, 500] },
     surfaces: [
       { x: 0, y: 603, w: 1280, h: 117, type: "floor" },
@@ -101,7 +115,7 @@ export const LEVELS = [
     background: "assets/room-laundry.webp", music: "assets/AmbienceTTHCLaundry.mp3", floorY: 603, time: 115, catches: 4,
     thiefStory: "Climb across the machines, search the baskets and avoid the patches of floor that reveal your footsteps.",
     guardStory: "Someone has been digging through the laundry baskets. Search the room and stop the Crew before the door opens.",
-    rulesTip: "The orange steam above the washing machines causes damage. Use the marked towel, pipes and machine sides to take a safer route.",
+    rulesTip: "The sofa, bookshelf, armchair and TV cabinet create several connected routes. Nearby usable edges and hiding places glow; the rug and loose floorboard reveal fast movement.",
     playerSpawn: { thief: [30, 530], guard: [1170, 500] },
     surfaces: [
       { x: 0, y: 602, w: 1280, h: 118, type: "floor" },
@@ -156,7 +170,7 @@ export const LEVELS = [
     background: "assets/room-kitchen.webp", music: "assets/AmbienceTTHCKitchen.mp3", floorY: 591, time: 125, catches: 5,
     thiefStory: "The final raid crosses counters, the kitchen island and hot surfaces. Collect the loot and vanish before the whole house wakes up.",
     guardStory: "The Crew has reached the kitchen. Use Guardian Pulse carefully and protect the room's last tiny treasures.",
-    rulesTip: "Steam and red heat above the stove counter cause damage. The final level gives Draco and the Crew their fastest reactions.",
+    rulesTip: "Use the table, towel, countertop, island and cabinets as a connected route through the kitchen. Avoid steam and red heat; the final floor item is safely below the stove route.",
     playerSpawn: { thief: [1220, 520], guard: [70, 490] },
     surfaces: [
       { x: 0, y: 591, w: 1280, h: 129, type: "floor" },
@@ -190,13 +204,13 @@ export const LEVELS = [
 guardSocks: [
   { x: 100, y: 195 }, { x: 190, y: 415 }, { x: 400, y: 315 },
   { x: 570, y: 315 }, { x: 690, y: 315 }, { x: 820, y: 402 },
-  { x: 910, y: 228 }, { x: 1238, y: 370 },
+  { x: 910, y: 228 }, { x: 1040, y: 560 },
 ],
 items: [
       { x: 100, y: 195, kind: "button" }, { x: 190, y: 415, kind: "sock" },
       { x: 400, y: 315, kind: "spoon" }, { x: 690, y: 315, kind: "key" },
       { x: 820, y: 402, kind: "clip" }, { x: 910, y: 228, kind: "spool" },
-      { x: 1238, y: 370, kind: "spoon" },
+      { x: 1040, y: 560, kind: "spoon" },
     ],
     exit: { x: 12, y: 511, w: 42, h: 80, label: "the gap beneath the door" },
     tutorial: [{ x: 680, text: "The kitchen is the final level – every sound can give you away" }],

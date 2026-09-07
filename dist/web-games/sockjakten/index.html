@@ -160,26 +160,32 @@
         <section id="rulesModal" class="rules-modal hidden" role="dialog" aria-modal="true" aria-labelledby="rulesTitle">
   <div class="rules-card">
     <button id="closeRulesBtn" class="close-btn" type="button" aria-label="Close rules">×</button>
+
     <p class="overline">HOW IT WORKS</p>
     <h2 id="rulesTitle">GAME RULES</h2>
 
     <div id="rulesContext" class="rules-context" aria-live="polite">
       <div>
-        <small>SELECTED CHARACTER</small>
-        <strong id="rulesCharacter">Clawster</strong>
+        <small>PLAYABLE CHARACTERS</small>
+        <strong id="rulesCharacter">The Tiny Heist Crew or Draco</strong>
       </div>
 
       <div>
-        <small>CURRENT LEVEL</small>
-        <strong id="rulesLevel">Bedroom · Difficulty 1/4</strong>
+        <small>AVAILABLE ROOMS</small>
+        <strong id="rulesLevel">Bedroom · Laundry Room · Living Room · Kitchen</strong>
       </div>
 
       <div class="rules-objective">
-        <small>YOUR OBJECTIVE</small>
-        <strong id="rulesObjective"></strong>
+        <small>THE TWO WAYS TO PLAY</small>
+        <strong id="rulesObjective">
+          Steal every item and escape as the Crew, or protect the socks and catch every thief as Draco.
+        </strong>
       </div>
 
-      <p id="rulesLevelTip"></p>
+      <p id="rulesLevelTip">
+        Each room is a physical route through its furniture, fabric, handles and hiding places.
+        Later levels give both sides faster reactions and more difficult objectives.
+      </p>
     </div>
 
     <div class="rules-columns">
@@ -189,10 +195,11 @@
 
         <ol>
           <li>Collect every orange loot item in the room. Socks, keys, buttons and other objects all count toward the objective.</li>
-          <li>Move on the floor and the highlighted furniture tops. Gaps between the light lines are not landing surfaces.</li>
-          <li>Jump toward an edge to pull yourself up. Use W/S near marked fabric, handles and pipes to climb.</li>
+          <li>The room itself is the route. Move across the floor and jump onto real furniture when its edge softly lights up.</li>
+          <li>Jump toward an edge to pull yourself up. Nearby fabric, handles and pipes glow when they can be climbed with W/S.</li>
           <li>Watch the warning meter: Draco roams unpredictably until he sees or hears you.</li>
-          <li>Violet outlines mark hiding places. Break Draco's line of sight, move close and press Q, F or the HIDE touch button.</li>
+          <li>A violet glow reveals a nearby hiding place. Break Draco's line of sight, move close and press Q, F or the HIDE touch button.</li>
+          <li>You have three lives. Touching Draco or a dangerous heat or steam zone costs one life and returns you to the room entrance.</li>
           <li>Collect everything before time runs out, then reach the orange exit.</li>
         </ol>
       </article>
@@ -206,7 +213,7 @@
           <li>Catch every thief before all protected socks disappear. Draco has no time limit.</li>
           <li>Move, jump and climb through the same room routes as the Crew.</li>
           <li>The thieves run, jump, climb, use their own abilities and hide when you get close.</li>
-          <li>Touch a visible thief to catch them. Violet hiding markers show where a thief may disappear.</li>
+          <li>Touch a visible thief to catch them. A nearby hiding place glows violet when it can be searched.</li>
           <li>Guardian Pulse briefly stuns nearby thieves, but does not catch them automatically.</li>
         </ol>
       </article>
@@ -251,6 +258,11 @@
           <b>Music on/off</b>
         </span>
       </div>
+
+      <p class="touch-rule">
+        On phones and tablets, turn the device sideways and use the on-screen movement,
+        climb, jump, hide and ability controls.
+      </p>
     </div>
 
     <div class="rules-section stealth-rules">
@@ -278,12 +290,18 @@
     </div>
 
     <div class="rules-section">
-      <h3>Selected ability</h3>
+      <h3>Level guide</h3>
+      <div id="levelRules" class="level-rules"></div>
+    </div>
+
+    <div class="rules-section">
+      <h3 id="abilityRulesTitle">Character abilities</h3>
       <div id="abilityRules" class="ability-rules"></div>
     </div>
 
     <p class="rules-tip">
-      Tip: running footsteps and marked floor zones make more noise. Progress is saved automatically in your browser.
+      Tip: running footsteps and glowing floor zones make more noise.
+      Completing a room unlocks the next level, and progress is saved automatically in your browser.
     </p>
   </div>
 </section>
