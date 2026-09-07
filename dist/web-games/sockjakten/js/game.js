@@ -252,8 +252,8 @@ function createEntity(id, x, y, enemy = false) {
     lastSeenX: x, lastSeenY: y, memory: 0, searchTimer: 0, searchSide: 1, pulse: 0,
     animDistance: Math.random() * 30, idlePhase: Math.random() * Math.PI * 2,
     ledgePull: 0, roamTarget: null, roamSurface: -1, roamTimer: 0,
-    roamSpeed: .42, roamPause: Math.random() * .45, feintTimer: 1.1 + Math.random() * 2.4,
-    stuckX: x, stuckCheckTimer: .65,
+    roamSpeed: .42, feintTimer: 1.1 + Math.random() * 2.4,
+    stuckX: x, stuckY: y, stuckCheckTimer: .65,
     hidden: false, hideSpot: null, hideTimer: 0, hideReveal: 0,
     invisible: 0, boostTimer: 0, abilityCooldown: 2.4 + Math.random() * 2.8,
     decisionTimer: .45 + Math.random() * .8, lootTarget: -1,
@@ -303,12 +303,24 @@ function climbFor(entity) {
   return state.level.climbs.find((climb) => overlaps(sensor, climb));
 }
 
+function walkableSurfaceBounds(surface) {
+  if (surface.type === "floor") return { left: surface.x, right: surface.x + surface.w };
+  const clearance = Math.min(18, Math.max(10, surface.w * .16));
+  return { left: surface.x + clearance, right: surface.x + surface.w - clearance };
+}
+
+function surfacePositionRange(surface, entityWidth, padding = 5) {
+  const bounds = walkableSurfaceBounds(surface);
+  const min = bounds.left + padding;
+  return { min, max: Math.max(min, bounds.right - entityWidth - padding) };
+}
+
 function supportSurface(entity) {
   const feet = entity.y + entity.h;
-  return state.level.surfaces.find((surface) =>
-    entity.x + entity.w - 9 > surface.x && entity.x + 9 < surface.x + surface.w &&
-    Math.abs(feet - surface.y) < 9
-  );
+  return state.level.surfaces.find((surface) => {
+    const bounds = walkableSurfaceBounds(surface);
+    return entity.x + entity.w - 7 > bounds.left && entity.x + 7 < bounds.right && Math.abs(feet - surface.y) < 9;
+  });
 }
 
 function pullOntoLedge(entity, direction) {
@@ -317,14 +329,16 @@ function pullOntoLedge(entity, direction) {
   const feetY = entity.y + entity.h;
   const ledge = state.level.surfaces.find((surface) => {
     if (surface.type === "floor" || surface.y < handY - 20 || surface.y > feetY + 14) return false;
-    const atLeftEdge = direction > 0 && Math.abs(entity.x + entity.w - surface.x) < 21;
-    const atRightEdge = direction < 0 && Math.abs(entity.x - (surface.x + surface.w)) < 21;
+    const bounds = walkableSurfaceBounds(surface);
+    const atLeftEdge = direction > 0 && Math.abs(entity.x + entity.w - bounds.left) < 21;
+    const atRightEdge = direction < 0 && Math.abs(entity.x - bounds.right) < 21;
     return atLeftEdge || atRightEdge;
   });
   if (!ledge) return false;
-  entity.x = direction > 0 ? ledge.x + 12 : ledge.x + ledge.w - entity.w - 12;
+  const bounds = walkableSurfaceBounds(ledge);
+  entity.x = direction > 0 ? bounds.left + 6 : bounds.right - entity.w - 6;
   entity.y = ledge.y - entity.h; entity.vx *= .35; entity.vy = 0;
-  entity.onGround = true; entity.ledgePull = .3; entity.landSquash = .18;
+  entity.onGround = true; entity.ledgePull = .42; entity.landSquash = .18;
   if (entity === state.player) burst(entity.x + entity.w / 2, ledge.y, CHARACTERS[entity.id].color, 4);
   return true;
 }
@@ -343,7 +357,7 @@ function updateEntity(entity, dt, controls, speedScale = 1, isPlayer = false) {
   const climb = climbFor(entity); const climbDir = (controls.down ? 1 : 0) - (controls.up ? 1 : 0);
   if (climb && climbDir !== 0 && entity.ledgePull <= 0) entity.climbing = true;
   if (entity.climbing && !climb) entity.climbing = false;
-  if (entity.climbing && entity.jumpBuffer > 0) { entity.climbing = false; entity.ledgePull = .18; entity.vy = -character.jump * .78; entity.jumpBuffer = 0; state.jumpBuffer = 0; }
+  if (entity.climbing && entity.jumpBuffer > 0) { entity.climbing = false; entity.ledgePull = .32; entity.vx += entity.face * 95; entity.vy = -character.jump * .78; entity.jumpBuffer = 0; state.jumpBuffer = 0; }
 
   const targetVx = dir * character.speed * speedScale;
   const accel = character.acceleration * (entity.onGround ? 1 : .58) * speedScale;
@@ -359,10 +373,15 @@ function updateEntity(entity, dt, controls, speedScale = 1, isPlayer = false) {
         .filter((surface) => surface.type !== "floor" && Math.abs(surface.y - climb.y) < 70 && surface.x < climb.x + climb.w + 18 && surface.x + surface.w > climb.x - 18)
         .sort((a, b) => Math.abs(a.y - climb.y) - Math.abs(b.y - climb.y))[0];
       if (mount && entity.y + entity.h * .45 <= mount.y + 22) {
-        entity.climbing = false; entity.onGround = true; entity.vy = 0; entity.ledgePull = .32;
-        entity.x = clamp(entity.x, mount.x + 12, mount.x + mount.w - entity.w - 12);
-        entity.y = mount.y - entity.h;
-      }
+      const range = surfacePositionRange(mount, entity.w, 5);
+      const leftOfClimb = climb.x - entity.w - 10;
+      const rightOfClimb = climb.x + climb.w + 10;
+      const options = entity.face >= 0 ? [rightOfClimb, leftOfClimb] : [leftOfClimb, rightOfClimb];
+      const mountX = options.find((candidate) => candidate >= range.min && candidate <= range.max) ?? clamp(entity.x, range.min, range.max);
+     entity.climbing = false; entity.onGround = true; entity.vy = 0; entity.ledgePull = .48;
+     entity.x = mountX; entity.face = mountX >= climb.x + climb.w / 2 ? 1 : -1; entity.vx = entity.face * 65;
+     entity.y = mount.y - entity.h;
+     }
     }
   } else {
     if (entity.jumpBuffer > 0 && entity.coyote > 0) {
@@ -382,8 +401,9 @@ function updateEntity(entity, dt, controls, speedScale = 1, isPlayer = false) {
     let landing = null;
     state.level.surfaces.forEach((surface) => {
       const nextBottom = entity.y + entity.h;
-      const horizontal = entity.x + entity.w - 9 > surface.x && entity.x + 9 < surface.x + surface.w;
-      if (horizontal && oldBottom <= surface.y + 5 && nextBottom >= surface.y && (!landing || surface.y < landing.y)) landing = surface;
+const bounds = walkableSurfaceBounds(surface);
+const horizontal = entity.x + entity.w - 7 > bounds.left && entity.x + 7 < bounds.right;
+if (horizontal && oldBottom <= surface.y + 5 && nextBottom >= surface.y && (!landing || surface.y < landing.y)) landing = surface;
     });
     if (landing) {
       const landingSpeed = entity.vy; entity.y = landing.y - entity.h; entity.vy = 0; entity.onGround = true;
@@ -508,40 +528,69 @@ function chooseDracoRoamTarget(draco, forceDifferent = false) {
       });
       return { surface, index, climbLink };
     })
-    .filter(({ surface, climbLink }) => surface.w >= 75 && (Math.abs(surface.y - currentY) <= 160 || climbLink));
+    .filter(({ surface, climbLink }) => {
+      const verticalGap = surface.y - currentY;
+      return surface.w >= 75 && (verticalGap >= 0 || Math.abs(verticalGap) <= 95 || climbLink);
+    });
   const raised = candidates.filter(({ surface, index }) => surface.type !== "floor" && (!forceDifferent || index !== draco.roamSurface));
   const floor = candidates.filter(({ surface }) => surface.type === "floor");
   if (raised.length && Math.random() < .42) candidates = raised;
   else if (floor.length && Math.random() < .72) candidates = floor;
   if (forceDifferent && candidates.length > 1) candidates = candidates.filter(({ index }) => index !== draco.roamSurface);
   const choice = candidates[Math.floor(Math.random() * candidates.length)] || { surface: state.level.surfaces[0], index: 0, climbLink: null };
-  const margin = Math.min(42, Math.max(10, choice.surface.w * .14));
-  const available = Math.max(1, choice.surface.w - draco.w - margin * 2);
-  const x = clamp(choice.surface.x + margin + Math.random() * available, 8, GAME.width - draco.w - 8);
+  const range = surfacePositionRange(choice.surface, draco.w, 6);
+  const x = clamp(range.min + Math.random() * Math.max(1, range.max - range.min), 8, GAME.width - draco.w - 8);
   const y = choice.surface.y - draco.h;
-  draco.roamTarget = { x, y, surface: choice.surface.type, viaClimb: choice.surface.y < currentY - 155 ? choice.climbLink : null };
+  draco.roamTarget = { x, y, surface: choice.surface.type, viaClimb: choice.surface.y < currentY - 70 ? choice.climbLink : null };
   draco.roamSurface = choice.index;
   draco.roamTimer = 3.1 + Math.abs(x - draco.x) / 175 + Math.abs(y - draco.y) / 130 + Math.random() * 1.8;
-  draco.roamSpeed = .3 + Math.random() * .25;
-  draco.roamPause = Math.random() < .32 ? .28 + Math.random() * .72 : 0;
+  draco.roamSpeed = .36 + Math.random() * .2;
   draco.feintTimer = 1.1 + Math.random() * 2.4;
 }
 
 function keepDracoMoving(draco, dt) {
   draco.stuckCheckTimer -= dt;
   if (draco.stuckCheckTimer > 0) return;
-  if (draco.mode === "alert" || (draco.mode === "patrol" && draco.roamPause > 0)) {
-    draco.stuckX = draco.x; draco.stuckCheckTimer = .5 + Math.random() * .24;
-    return;
-  }
-  const barelyMoved = Math.abs(draco.x - draco.stuckX) < 3;
+  const barelyMoved = Math.hypot(draco.x - draco.stuckX, draco.y - draco.stuckY) < 4;
   if (barelyMoved) {
-    if (draco.mode === "patrol") chooseDracoRoamTarget(draco, true);
-    else { draco.searchSide *= -1; draco.lastSeenX = clamp(draco.x + draco.searchSide * (75 + Math.random() * 95), 20, GAME.width - 20); }
-    draco.face *= -1; draco.vx = draco.face * 72;
-    if (draco.onGround) { draco.jumpBuffer = .12; draco.aiJump = .7; }
+    if (draco.climbing) {
+      draco.climbing = false; draco.ledgePull = .36; draco.face *= -1;
+      draco.vx = draco.face * 120; draco.vy = -145;
+    } else {
+      if (draco.mode === "patrol" || draco.mode === "alert") chooseDracoRoamTarget(draco, true);
+      else { draco.searchSide *= -1; draco.lastSeenX = clamp(draco.x + draco.searchSide * (75 + Math.random() * 95), 20, GAME.width - 20); }
+      const targetX = draco.mode === "patrol" || draco.mode === "alert" ? draco.roamTarget?.x : draco.lastSeenX;
+      draco.face = Math.sign((targetX ?? draco.x + 1) - draco.x) || -draco.face || 1;
+      draco.vx = draco.face * 105;
+      if (draco.onGround) { draco.jumpBuffer = .12; draco.aiJump = .7; }
+    }
   }
-  draco.stuckX = draco.x; draco.stuckCheckTimer = .5 + Math.random() * .24;
+  draco.stuckX = draco.x; draco.stuckY = draco.y; draco.stuckCheckTimer = .46 + Math.random() * .22;
+}
+
+function moveDracoAlongRoute(draco, dt, controls, slowScale, speedMultiplier = 1) {
+  if (!draco.roamTarget) chooseDracoRoamTarget(draco);
+  draco.roamTimer -= dt; draco.feintTimer -= dt;
+  let dx = draco.roamTarget.x - draco.x; let dy = draco.roamTarget.y - draco.y;
+  const arrived = Math.abs(dx) < 20 && Math.abs(dy) < 28;
+  if (arrived || draco.roamTimer <= 0) {
+    chooseDracoRoamTarget(draco, true); dx = draco.roamTarget.x - draco.x; dy = draco.roamTarget.y - draco.y;
+  }
+  if (draco.feintTimer <= 0 && !draco.climbing) {
+    chooseDracoRoamTarget(draco, Math.random() < .72);
+    draco.feintTimer = 1.1 + Math.random() * 2.4; dx = draco.roamTarget.x - draco.x; dy = draco.roamTarget.y - draco.y;
+  }
+  const climb = draco.roamTarget.viaClimb;
+  if (draco.climbing) controls.up = true;
+  else if (climb && dy < -45) {
+    const climbDx = climb.x + climb.w / 2 - (draco.x + draco.w / 2);
+    controls.left = climbDx < -7; controls.right = climbDx > 7; controls.up = Math.abs(climbDx) <= 10;
+  } else { controls.left = dx < -8; controls.right = dx > 8; }
+  if (!climb && dy < -42 && draco.onGround && draco.aiJump <= 0) {
+    draco.jumpBuffer = .12; draco.aiJump = .85 + Math.random() * .55;
+  }
+  draco.aiJump -= dt;
+  updateEntity(draco, dt, controls, draco.roamSpeed * speedMultiplier * slowScale);
 }
 
 function updateDraco(draco, dt) {
@@ -566,30 +615,10 @@ function updateDraco(draco, dt) {
   }
 
   if (draco.mode === "patrol") {
-    if (!draco.roamTarget) chooseDracoRoamTarget(draco);
-    draco.roamTimer -= dt; draco.feintTimer -= dt; draco.roamPause = Math.max(0, draco.roamPause - dt);
-    let dx = draco.roamTarget.x - draco.x; let dy = draco.roamTarget.y - draco.y;
-    const arrived = Math.abs(dx) < 20 && Math.abs(dy) < 28;
-    if (arrived || draco.roamTimer <= 0) { chooseDracoRoamTarget(draco, true); dx = draco.roamTarget.x - draco.x; dy = draco.roamTarget.y - draco.y; }
-    if (draco.feintTimer <= 0 && !draco.climbing) {
-      if (Math.random() < .58) chooseDracoRoamTarget(draco, true);
-      else draco.roamPause = .25 + Math.random() * .7;
-      draco.feintTimer = 1.1 + Math.random() * 2.4; dx = draco.roamTarget.x - draco.x; dy = draco.roamTarget.y - draco.y;
-    }
-    const climb = draco.roamTarget.viaClimb;
-    if (draco.roamPause <= 0) {
-      if (draco.climbing) controls.up = true;
-      else if (climb && dy < -70) {
-        const climbDx = climb.x + climb.w / 2 - (draco.x + draco.w / 2);
-        controls.left = climbDx < -7; controls.right = climbDx > 7; controls.up = Math.abs(climbDx) <= 10;
-      } else { controls.left = dx < -8; controls.right = dx > 8; }
-      if (!climb && dy < -42 && draco.onGround && draco.aiJump <= 0) { draco.jumpBuffer = .12; draco.aiJump = .85 + Math.random() * .55; }
-    }
-    draco.aiJump -= dt; updateEntity(draco, dt, controls, (draco.roamPause > 0 ? .08 : draco.roamSpeed) * slowScale);
+    moveDracoAlongRoute(draco, dt, controls, slowScale);
   } else if (draco.mode === "alert") {
     draco.searchTimer -= dt;
-    const dx = draco.lastSeenX - draco.x; draco.face = Math.sign(dx || draco.face);
-    updateEntity(draco, dt, controls, .08 * slowScale);
+    moveDracoAlongRoute(draco, dt, controls, slowScale, .82);
     if (draco.suspicion >= 1) { draco.mode = "chase"; draco.memory = 4; }
     else if (draco.searchTimer <= 0 && !visible) { draco.mode = "search"; draco.searchTimer = 3.4; }
   } else if (draco.mode === "chase") {
@@ -607,7 +636,6 @@ function updateDraco(draco, dt) {
     if (Math.abs(targetX - draco.x) < 14) draco.searchSide *= -1;
     controls.left = targetX < draco.x; controls.right = targetX > draco.x;
     updateEntity(draco, dt, controls, .48 * slowScale);
-    if (visible) { draco.suspicion = clamp(draco.suspicion + dt * 2, 0, 1); if (draco.suspicion >= 1) { draco.mode = "chase"; draco.lastSeenX = state.player.x; draco.lastSeenY = state.player.y; draco.memory = 4; } }
     if (draco.searchTimer <= 0) { draco.mode = "patrol"; draco.suspicion = 0; chooseDracoRoamTarget(draco, true); }
   }
 
@@ -631,7 +659,10 @@ function chooseThiefRoamTarget(thief, forceDifferent = false) {
       });
       return { surface, index, climbLink };
     })
-    .filter(({ surface, climbLink }) => surface.w >= 72 && (Math.abs(surface.y - currentY) <= 175 || climbLink));
+    .filter(({ surface, climbLink }) => {
+  const verticalGap = surface.y - currentY;
+  return surface.w >= 72 && (verticalGap >= 0 || Math.abs(verticalGap) <= 90 || climbLink);
+});
   if (forceDifferent && candidates.length > 1) candidates = candidates.filter(({ index }) => index !== thief.roamSurface);
 
   const threatened = distance(thief, state.player) < 330;
@@ -658,10 +689,9 @@ function chooseThiefRoamTarget(thief, forceDifferent = false) {
   }
 
   const choice = candidates[Math.floor(Math.random() * candidates.length)] || { surface: state.level.surfaces[0], index: 0, climbLink: null };
-  const margin = Math.min(34, Math.max(8, choice.surface.w * .12));
-  const available = Math.max(1, choice.surface.w - thief.w - margin * 2);
-  const randomX = choice.surface.x + margin + Math.random() * available;
-  const targetX = lootTarget && !threatened ? clamp(lootTarget.x - thief.w / 2, choice.surface.x + margin, choice.surface.x + choice.surface.w - thief.w - margin) : randomX;
+  const range = surfacePositionRange(choice.surface, thief.w, 5);
+  const randomX = range.min + Math.random() * Math.max(1, range.max - range.min);
+  const targetX = lootTarget && !threatened ? clamp(lootTarget.x - thief.w / 2, range.min, range.max) : randomX;
   const x = clamp(targetX, 7, GAME.width - thief.w - 7);
   thief.roamTarget = {
     x,
@@ -766,13 +796,17 @@ function updateThiefAi(enemy, dt) {
   updateEntity(enemy, dt, controls, speed);
 
   enemy.stuckCheckTimer -= dt;
-  if (enemy.stuckCheckTimer <= 0) {
-    if (Math.abs(enemy.x - enemy.stuckX) < 2.5) {
-      chooseThiefRoamTarget(enemy, true); enemy.face *= -1; enemy.vx = enemy.face * 90;
+if (enemy.stuckCheckTimer <= 0) {
+  if (Math.hypot(enemy.x - enemy.stuckX, enemy.y - enemy.stuckY) < 3.5) {
+    if (enemy.climbing) {
+      enemy.climbing = false; enemy.ledgePull = .34; enemy.face *= -1; enemy.vx = enemy.face * 110; enemy.vy = -135;
+    } else {
+      chooseThiefRoamTarget(enemy, true); enemy.face = Math.sign(enemy.roamTarget.x - enemy.x) || -enemy.face || 1; enemy.vx = enemy.face * 90;
       if (enemy.onGround) enemy.jumpBuffer = .12;
     }
-    enemy.stuckX = enemy.x; enemy.stuckCheckTimer = .55 + Math.random() * .35;
   }
+  enemy.stuckX = enemy.x; enemy.stuckY = enemy.y; enemy.stuckCheckTimer = .55 + Math.random() * .35;
+}
 
   if (!enemy.hidden && enemy.invisible <= 0 && overlaps(state.player, enemy, 5)) catchEnemy(enemy);
   if (!enemy.active || !state.running) return;
@@ -959,19 +993,21 @@ function drawRoomCues() {
   const playerFeet = state.player.y + state.player.h;
   const furniture = state.level.surfaces.filter((surface) => surface.type !== "floor");
   const nearestSurface = furniture.reduce((nearest, surface) => {
-    const horizontalGap = Math.max(0, Math.abs(playerCenter - (surface.x + surface.w / 2)) - surface.w / 2);
-    const score = horizontalGap + Math.abs(playerFeet - surface.y) * .55;
-    return !nearest || score < nearest.score ? { surface, score } : nearest;
-  }, null);
-  furniture.forEach((surface) => {
-    const active = nearestSurface?.surface === surface && nearestSurface.score < 165;
-    ctx.globalAlpha = active ? .88 : .3; ctx.strokeStyle = active ? "#b8f1ff" : "#82bed0"; ctx.lineWidth = active ? 3 : 1.5;
-    ctx.beginPath(); ctx.moveTo(surface.x + 4, surface.y); ctx.lineTo(surface.x + surface.w - 4, surface.y); ctx.stroke();
-    ctx.fillStyle = active ? "#dcf8ff" : "#82bed0";
-    for (const edgeX of [surface.x + 5, surface.x + surface.w - 5]) {
-      ctx.beginPath(); ctx.arc(edgeX, surface.y, active ? 3.5 : 2, 0, Math.PI * 2); ctx.fill();
-    }
-  });
+  const bounds = walkableSurfaceBounds(surface);
+  const horizontalGap = playerCenter < bounds.left ? bounds.left - playerCenter : playerCenter > bounds.right ? playerCenter - bounds.right : 0;
+  const score = horizontalGap + Math.abs(playerFeet - surface.y) * .55;
+  return !nearest || score < nearest.score ? { surface, bounds, score } : nearest;
+}, null);
+furniture.forEach((surface) => {
+  const bounds = walkableSurfaceBounds(surface);
+  const active = nearestSurface?.surface === surface && nearestSurface.score < 165;
+  ctx.globalAlpha = active ? .88 : .3; ctx.strokeStyle = active ? "#b8f1ff" : "#82bed0"; ctx.lineWidth = active ? 3 : 1.5;
+  ctx.beginPath(); ctx.moveTo(bounds.left, surface.y); ctx.lineTo(bounds.right, surface.y); ctx.stroke();
+  ctx.fillStyle = active ? "#dcf8ff" : "#82bed0";
+  for (const edgeX of [bounds.left, bounds.right]) {
+    ctx.beginPath(); ctx.arc(edgeX, surface.y, active ? 3.5 : 2, 0, Math.PI * 2); ctx.fill();
+  }
+});
   if (nearestSurface && nearestSurface.score < 165 && nearestSurface.surface.label) {
     const surface = nearestSurface.surface; const labelX = clamp(playerCenter, surface.x + 62, surface.x + surface.w - 62);
     ctx.globalAlpha = .92; ctx.fillStyle = "rgba(4,13,22,.88)"; ctx.fillRect(labelX - 62, surface.y - 28, 124, 20);

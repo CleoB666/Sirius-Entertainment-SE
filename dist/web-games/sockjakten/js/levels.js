@@ -82,11 +82,11 @@ export const LEVELS = [
     hazards: [{ x: 705, y: 309, w: 66, h: 12, kind: "steam" }],
     guardSocks: [
       { x: 95, y: 265 }, { x: 250, y: 377 }, { x: 465, y: 291 },
-      { x: 733, y: 291 }, { x: 905, y: 365 }, { x: 975, y: 210 },
+      { x: 620, y: 291 }, { x: 905, y: 365 }, { x: 975, y: 210 },
     ],
     items: [
       { x: 95, y: 265, kind: "sock" }, { x: 250, y: 377, kind: "sock" },
-      { x: 465, y: 291, kind: "button" }, { x: 733, y: 291, kind: "sock" },
+      { x: 465, y: 291, kind: "button" }, { x: 620, y: 291, kind: "sock" },
       { x: 905, y: 365, kind: "clip" }, { x: 975, y: 210, kind: "sock" },
     ],
     exit: { x: 1224, y: 522, w: 42, h: 80, label: "the door" },
