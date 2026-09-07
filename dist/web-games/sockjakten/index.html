@@ -2,7 +2,10 @@
 <html lang="en">
   <head>
     <meta charset="UTF-8" />
-    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <meta
+  name="viewport"
+  content="width=device-width, initial-scale=1, viewport-fit=cover"
+/>
     <meta name="theme-color" content="#07101d" />
     <meta
       name="description"
@@ -260,9 +263,10 @@
       </div>
 
       <p class="touch-rule">
-        On phones and tablets, turn the device sideways and use the on-screen movement,
-        climb, jump, hide and ability controls.
-      </p>
+  On phones and tablets, turn the device sideways.
+  Use MOVE to walk, CLIMB near fabric, handles and pipes,
+  and ACTIONS to jump, hide or activate the selected ability.
+</p>
     </div>
 
     <div class="rules-section stealth-rules">
@@ -306,19 +310,82 @@
   </div>
 </section>
 
-        <nav id="touchControls" class="touch-controls hidden" aria-label="Touch controls">
-          <div>
-            <button data-control="left" aria-label="Left">←</button>
-            <button data-control="right" aria-label="Right">→</button>
-          </div>
-          <div>
-            <button data-control="down" aria-label="Climb down">↓</button>
-            <button data-control="up" aria-label="Climb up">↑</button>
-            <button data-control="hide" class="accent hide" aria-label="Hide">Q</button>
-            <button data-control="jump" class="accent" aria-label="Jump">JUMP</button>
-            <button data-control="ability" class="accent alt" aria-label="Ability">E</button>
-          </div>
-        </nav>
+        <nav
+  id="touchControls"
+  class="touch-controls hidden"
+  aria-label="Touch controls"
+>
+  <div class="touch-group touch-move" aria-label="Movement controls">
+    <span class="touch-group-label" aria-hidden="true">MOVE</span>
+
+    <button
+      type="button"
+      data-control="left"
+      aria-label="Move left"
+    >
+      ←
+    </button>
+
+    <button
+      type="button"
+      data-control="right"
+      aria-label="Move right"
+    >
+      →
+    </button>
+  </div>
+
+  <div class="touch-group touch-climb" aria-label="Climbing controls">
+    <span class="touch-group-label" aria-hidden="true">CLIMB</span>
+
+    <button
+      type="button"
+      data-control="up"
+      aria-label="Climb up"
+    >
+      ↑
+    </button>
+
+    <button
+      type="button"
+      data-control="down"
+      aria-label="Climb down"
+    >
+      ↓
+    </button>
+  </div>
+
+  <div class="touch-group touch-actions" aria-label="Action controls">
+    <span class="touch-group-label" aria-hidden="true">ACTIONS</span>
+
+    <button
+      type="button"
+      data-control="jump"
+      class="accent jump"
+      aria-label="Jump"
+    >
+      JUMP
+    </button>
+
+    <button
+      type="button"
+      data-control="hide"
+      class="accent hide"
+      aria-label="Hide or leave hiding place"
+    >
+      HIDE
+    </button>
+
+    <button
+      type="button"
+      data-control="ability"
+      class="accent alt ability"
+      aria-label="Use special ability"
+    >
+      SKILL
+    </button>
+  </div>
+</nav>
       </section>
     </main>
 
