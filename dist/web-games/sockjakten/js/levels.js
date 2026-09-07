@@ -98,10 +98,11 @@ export const LEVELS = [
   {
     id: "living", number: 3, name: "Living Room", title: "Between the Cushions",
     tagline: "Tiny treasures are everywhere. So are the shadows.",
-    background: "assets/room-living.webp", music: "assets/AmbienceTTHCLivingroom.mp3", floorY: 602, time: 130, catches: 4,
-    thiefStory: "Search between sofa cushions, tables and bookshelves. There are more routes here – but Draco hears every careless step.",
-    guardStory: "The thieves have scattered among the furniture. Read their tracks and force them out of hiding.",
-    playerSpawn: { thief: [24, 530], guard: [1160, 500] },
+    background: "assets/room-laundry.webp", music: "assets/AmbienceTTHCLaundry.mp3", floorY: 603, time: 115, catches: 4,
+    thiefStory: "Climb across the machines, search the baskets and avoid the patches of floor that reveal your footsteps.",
+    guardStory: "Someone has been digging through the laundry baskets. Search the room and stop the Crew before the door opens.",
+    rulesTip: "The orange steam above the washing machines causes damage. Use the marked towel, pipes and machine sides to take a safer route.",
+    playerSpawn: { thief: [30, 530], guard: [1170, 500] },
     surfaces: [
       { x: 0, y: 602, w: 1280, h: 118, type: "floor" },
       { x: 28, y: 481, w: 92, h: 24, type: "table", label: "side table" },
@@ -152,9 +153,10 @@ export const LEVELS = [
   {
     id: "kitchen", number: 4, name: "Kitchen", title: "The Midnight Kitchen",
     tagline: "The most dangerous raid waits deep inside the house.",
-    background: "assets/room-kitchen.webp", music: "assets/AmbienceTTHCKitchen.mp3", floorY: 591, time: 140, catches: 5,
+    background: "assets/room-kitchen.webp", music: "assets/AmbienceTTHCKitchen.mp3", floorY: 591, time: 125, catches: 5,
     thiefStory: "The final raid crosses counters, the kitchen island and hot surfaces. Collect the loot and vanish before the whole house wakes up.",
     guardStory: "The Crew has reached the kitchen. Use Guardian Pulse carefully and protect the room's last tiny treasures.",
+    rulesTip: "Steam and red heat above the stove counter cause damage. The final level gives Draco and the Crew their fastest reactions.",
     playerSpawn: { thief: [1220, 520], guard: [70, 490] },
     surfaces: [
       { x: 0, y: 591, w: 1280, h: 129, type: "floor" },
@@ -188,13 +190,13 @@ export const LEVELS = [
 guardSocks: [
   { x: 100, y: 195 }, { x: 190, y: 415 }, { x: 400, y: 315 },
   { x: 570, y: 315 }, { x: 690, y: 315 }, { x: 820, y: 402 },
-  { x: 910, y: 228 }, { x: 1190, y: 370 },
+  { x: 910, y: 228 }, { x: 1238, y: 370 },
 ],
 items: [
       { x: 100, y: 195, kind: "button" }, { x: 190, y: 415, kind: "sock" },
       { x: 400, y: 315, kind: "spoon" }, { x: 690, y: 315, kind: "key" },
       { x: 820, y: 402, kind: "clip" }, { x: 910, y: 228, kind: "spool" },
-      { x: 1190, y: 370, kind: "spoon" },
+      { x: 1238, y: 370, kind: "spoon" },
     ],
     exit: { x: 12, y: 511, w: 42, h: 80, label: "the gap beneath the door" },
     tutorial: [{ x: 680, text: "The kitchen is the final level – every sound can give you away" }],

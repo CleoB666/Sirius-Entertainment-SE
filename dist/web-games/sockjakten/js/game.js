@@ -17,6 +17,7 @@ ctx.imageSmoothingEnabled = true;
 ctx.imageSmoothingQuality = "high";
 const themeAudio = $("#themeAudio");
 const ambienceAudio = $("#ambienceAudio");
+const coarsePointer = window.matchMedia("(pointer: coarse)");
 const AMBIENCE_LOOP_ENDS = new Map([
   ["assets/AmbienceTTHCBedroom.mp3", 33.24],
   ["assets/AmbienceTTHCLivingroom.mp3", 33.27],
@@ -64,6 +65,7 @@ function showScreen(name) {
 function setGameChrome(visible) {
   dom.hud.classList.toggle("hidden", !visible);
   dom.touch.classList.toggle("hidden", !visible);
+  dom.touch.classList.toggle("guard-mode", state.selectedId === "draco");
   if (!visible) dom.hint.classList.add("hidden");
 }
 
@@ -193,13 +195,7 @@ function buildMenus() {
   dom.startCast.textContent = "";
   const cast = document.createElement("img"); cast.className = "start-cast-image";
   cast.src = "assets/crew-cast.png"; cast.alt = ""; dom.startCast.append(cast);
-  const abilityRules = $("#abilityRules"); abilityRules.textContent = "";
-  CHARACTER_ORDER.forEach((id) => {
-    const character = CHARACTERS[id]; const rule = document.createElement("div"); rule.className = "ability-rule";
-    rule.style.setProperty("--ability-color", character.color);
-    rule.innerHTML = `<strong>${character.name} · ${character.ability}</strong><span>${character.abilityText}</span>`;
-    abilityRules.append(rule);
-  });
+  updateRulesContext();
 }
 
 function getProgress() {
@@ -209,10 +205,49 @@ function saveProgress(value) {
   try { localStorage.setItem(GAME.saveKey, String(clamp(value, 1, LEVELS.length))); } catch { /* The game remains playable without storage. */ }
 }
 
+function difficultyStep() {
+  return clamp(state.levelIndex, 0, LEVELS.length - 1);
+}
+
+function hideTimeLimit() {
+  return 6 - difficultyStep() * .3;
+}
+
+function updateRulesContext() {
+  const level = LEVELS[state.levelIndex] || LEVELS[0];
+  const character = CHARACTERS[state.selectedId];
+  const isGuard = state.selectedId === "draco";
+  const sockCount = guardSockLayout(level).length;
+
+  $("#rulesCharacter").textContent = `${character.name} · ${character.role}`;
+  $("#rulesLevel").textContent = `${level.name} · Difficulty ${level.number}/${LEVELS.length}`;
+
+  $("#rulesObjective").textContent = isGuard
+    ? `Catch ${level.catches} thieves before they steal all ${sockCount} protected socks.`
+    : `Collect ${level.items.length} loot items within ${level.time} seconds, then reach ${level.exit.label}.`;
+
+  $("#rulesLevelTip").textContent = level.rulesTip;
+  $("#thiefRulesArticle").classList.toggle("hidden", isGuard);
+  $("#guardRulesArticle").classList.toggle("hidden", !isGuard);
+  $("#hideControlRule").classList.toggle("hidden", isGuard);
+  $("#briefingHideControl").classList.toggle("hidden", isGuard);
+  $(".stealth-rules").classList.toggle("hidden", isGuard);
+
+  const abilityRules = $("#abilityRules");
+  abilityRules.textContent = "";
+
+  const rule = document.createElement("div");
+  rule.className = "ability-rule";
+  rule.style.setProperty("--ability-color", character.color);
+  rule.innerHTML = `<strong>${character.name} · ${character.ability}</strong><span>${character.abilityText}</span>`;
+  abilityRules.append(rule);
+}
+
 function selectCharacter(id) {
   state.selectedId = id; const character = CHARACTERS[id];
   $("#chosenRole").textContent = character.roleShort;
   $("#chosenSummary").textContent = `${character.name}: ${character.abilityText}`;
+  updateRulesContext();
   buildLevelCards(); showScreen("levels");
 }
 
@@ -238,7 +273,8 @@ function prepareLevel(index) {
   const sockCount = guardSockLayout(level).length;
   $("#briefingMission").textContent = isGuard ? `Catch ${level.catches} sock thieves before they steal ${sockGoalText(sockCount)}. There is no time limit.` : `Collect ${level.items.length} items, avoid Draco and reach ${level.exit.label}.`;
   $("#briefingAbility").textContent = `${character.ability}: ${character.abilityHint}`;
-  showScreen("briefing");
+   updateRulesContext();
+   showScreen("briefing");
 }
 
 function createEntity(id, x, y, enemy = false) {
@@ -262,8 +298,20 @@ function createEntity(id, x, y, enemy = false) {
 }
 
 function guardSockLayout(level) {
-  if (level.guardSocks?.length) return level.guardSocks.map((item) => ({ ...item, kind: "sock" }));
-  return level.items.filter((item) => item.kind === "sock");
+  if (level.guardSocks?.length) {
+    return level.guardSocks.map((item) => ({
+      ...item,
+      kind: "sock",
+      protected: true,
+    }));
+  }
+
+  return level.items
+    .filter((item) => item.kind === "sock")
+    .map((item) => ({
+      ...item,
+      protected: true,
+    }));
 }
 
 function initLevel() {
@@ -275,10 +323,22 @@ function initLevel() {
   state.enemies = [];
   if (isGuard) {
     for (let index = 0; index < level.catches; index += 1) {
-      const id = THIEF_IDS[index % THIEF_IDS.length]; const surface = level.surfaces[1 + (index * 2) % (level.surfaces.length - 1)];
-      const enemy = createEntity(id, clamp(surface.x + 20 + index * 29, surface.x + 4, surface.x + surface.w - CHARACTERS[id].width - 4), surface.y - CHARACTERS[id].height, true);
-      state.enemies.push(enemy); chooseThiefRoamTarget(enemy, true);
-    }
+  const id = THIEF_IDS[index % THIEF_IDS.length];
+  const surface = level.surfaces[1 + (index * 2) % (level.surfaces.length - 1)];
+  const spawnRange = surfacePositionRange(surface, CHARACTERS[id].width, 6);
+
+  const enemy = createEntity(
+    id,
+    clamp(spawnRange.min + index * 29, spawnRange.min, spawnRange.max),
+    surface.y - CHARACTERS[id].height,
+    true,
+  );
+
+  enemy.lootCooldown = Math.max(3.8, 5.25 - difficultyStep() * .38) + Math.random() * 3;
+
+  state.enemies.push(enemy);
+  chooseThiefRoamTarget(enemy, true);
+}
   } else {
     const spawnGuard = level.playerSpawn.guard; const draco = createEntity("draco", spawnGuard[0], spawnGuard[1], true);
     state.enemies.push(draco); chooseDracoRoamTarget(draco, true);
@@ -304,9 +364,19 @@ function climbFor(entity) {
 }
 
 function walkableSurfaceBounds(surface) {
-  if (surface.type === "floor") return { left: surface.x, right: surface.x + surface.w };
-  const clearance = Math.min(18, Math.max(10, surface.w * .16));
-  return { left: surface.x + clearance, right: surface.x + surface.w - clearance };
+  if (surface.type === "floor") {
+    return {
+      left: surface.x,
+      right: surface.x + surface.w,
+    };
+  }
+
+  const clearance = Math.min(24, Math.max(14, surface.w * .19));
+
+  return {
+    left: surface.x + clearance,
+    right: surface.x + surface.w - clearance,
+  };
 }
 
 function surfacePositionRange(surface, entityWidth, padding = 5) {
@@ -323,23 +393,67 @@ function supportSurface(entity) {
   });
 }
 
-function pullOntoLedge(entity, direction) {
-  if (!direction || entity.climbing || entity.onGround || entity.vy < -230) return false;
+function pullOntoLedge(entity, direction, wasGrounded = false) {
+  if (
+    !direction ||
+    entity.climbing ||
+    entity.onGround ||
+    wasGrounded ||
+    entity.ledgePull > 0 ||
+    entity.vy < -230
+  ) {
+    return false;
+  }
+
   const handY = entity.y + entity.h * .2;
   const feetY = entity.y + entity.h;
+
   const ledge = state.level.surfaces.find((surface) => {
-    if (surface.type === "floor" || surface.y < handY - 20 || surface.y > feetY + 14) return false;
+    if (
+      surface.type === "floor" ||
+      surface.y < handY - 20 ||
+      surface.y > feetY + 14
+    ) {
+      return false;
+    }
+
     const bounds = walkableSurfaceBounds(surface);
-    const atLeftEdge = direction > 0 && Math.abs(entity.x + entity.w - bounds.left) < 21;
-    const atRightEdge = direction < 0 && Math.abs(entity.x - bounds.right) < 21;
+    const atLeftEdge =
+      direction > 0 &&
+      Math.abs(entity.x + entity.w - bounds.left) < 21;
+
+    const atRightEdge =
+      direction < 0 &&
+      Math.abs(entity.x - bounds.right) < 21;
+
     return atLeftEdge || atRightEdge;
   });
+
   if (!ledge) return false;
+
   const bounds = walkableSurfaceBounds(ledge);
-  entity.x = direction > 0 ? bounds.left + 6 : bounds.right - entity.w - 6;
-  entity.y = ledge.y - entity.h; entity.vx *= .35; entity.vy = 0;
-  entity.onGround = true; entity.ledgePull = .42; entity.landSquash = .18;
-  if (entity === state.player) burst(entity.x + entity.w / 2, ledge.y, CHARACTERS[entity.id].color, 4);
+
+  entity.x =
+    direction > 0
+      ? bounds.left + 6
+      : bounds.right - entity.w - 6;
+
+  entity.y = ledge.y - entity.h;
+  entity.vx *= .35;
+  entity.vy = 0;
+  entity.onGround = true;
+  entity.ledgePull = .42;
+  entity.landSquash = .18;
+
+  if (entity === state.player) {
+    burst(
+      entity.x + entity.w / 2,
+      ledge.y,
+      CHARACTERS[entity.id].color,
+      4,
+    );
+  }
+
   return true;
 }
 
@@ -396,7 +510,7 @@ function updateEntity(entity, dt, controls, speedScale = 1, isPlayer = false) {
 
   const oldBottom = entity.y + entity.h; const wasGrounded = entity.onGround;
   entity.x = clamp(entity.x + entity.vx * dt, 0, GAME.width - entity.w); entity.y += entity.vy * dt; entity.onGround = false;
-  const grabbedLedge = pullOntoLedge(entity, dir);
+  const grabbedLedge = pullOntoLedge(entity, dir, wasGrounded);
   if (!grabbedLedge && !entity.climbing && entity.vy >= 0) {
     let landing = null;
     state.level.surfaces.forEach((surface) => {
@@ -409,12 +523,43 @@ if (horizontal && oldBottom <= surface.y + 5 && nextBottom >= surface.y && (!lan
       const landingSpeed = entity.vy; entity.y = landing.y - entity.h; entity.vy = 0; entity.onGround = true;
       if (!wasGrounded && landingSpeed > 170) { entity.landSquash = clamp(landingSpeed / 850, .15, .7); if (isPlayer) burst(entity.x + entity.w / 2, landing.y, "#d8e3e8", 4); }
     }
+   }
+
+  if (wasGrounded && !entity.onGround && !entity.climbing) {
+    entity.ledgePull = Math.max(entity.ledgePull, .18);
   }
+
   entity.animDistance += Math.abs(entity.x - entity.prevX) + Math.abs(entity.y - entity.prevY) * .28;
   if (entity.y > GAME.height + 80) {
-    if (isPlayer) takeDamage("You lost your footing.");
-    else { entity.x = 80 + Math.random() * 1100; entity.y = 380; entity.vy = 0; }
+  if (isPlayer && state.selectedId === "draco") {
+    const spawn = state.level.playerSpawn.guard;
+
+    Object.assign(entity, {
+      x: spawn[0],
+      y: spawn[1],
+      prevX: spawn[0],
+      prevY: spawn[1],
+      vx: 0,
+      vy: 0,
+      onGround: false,
+      climbing: false,
+      ledgePull: .5,
+    });
+
+    state.damageCooldown = .65;
+    showHint("Draco returned to safe ground.", 1.8);
+  } else if (isPlayer) {
+    takeDamage("You lost your footing.");
+  } else {
+    entity.x = 80 + Math.random() * 1100;
+    entity.y = state.level.floorY - entity.h - 4;
+    entity.prevX = entity.x;
+    entity.prevY = entity.y;
+    entity.vx = 0;
+    entity.vy = 0;
+    entity.climbing = false;
   }
+}
 }
 
 function playerControls() {
@@ -460,7 +605,9 @@ function toggleHide() {
 function canSeePlayer(draco) {
   if (state.hidden || state.invisibleTimer > 0 || !state.player) return false;
   const dx = state.player.x - draco.x; const dy = state.player.y - draco.y;
-  const sight = draco.mode === "chase" ? 390 : 305;
+  const sight = draco.mode === "chase"
+  ? 390 + difficultyStep() * 10
+  : 305 + difficultyStep() * 12;
   const inFront = Math.sign(dx || draco.face) === draco.face || Math.abs(dx) < 78;
   return inFront && Math.hypot(dx, dy * 1.35) < sight && Math.abs(dy) < 205;
 }
@@ -486,7 +633,7 @@ function updatePlayer(dt) {
   if (state.hidden) {
     state.player.prevX = state.player.x; state.player.prevY = state.player.y;
     state.hideTimer += dt;
-    if (state.hideTimer > 5.2 && !state.hideNoise) { state.hideNoise = true; emitNoise(state.player.x, .7); showHint("You have been hiding too long – Draco hears something…", 2.2); }
+    if (state.hideTimer > hideTimeLimit() && !state.hideNoise) { state.hideNoise = true; emitNoise(state.player.x, .7); showHint("You have been hiding too long – Draco hears something…", 2.2); }
   } else {
     updateEntity(state.player, dt, playerControls(), 1, true);
     state.footstepTimer -= dt;
@@ -595,56 +742,167 @@ function moveDracoAlongRoute(draco, dt, controls, slowScale, speedMultiplier = 1
 
 function updateDraco(draco, dt) {
   if (!draco.active) return;
-  const visible = canSeePlayer(draco); const slowScale = state.slowTimer > 0 ? .48 : 1;
+
+  const step = difficultyStep();
+  const visible = canSeePlayer(draco);
+  const slowScale = state.slowTimer > 0 ? .48 : 1;
   const controls = { jumpHeld: true };
+
   if (visible) {
     const firstNotice = draco.mode === "patrol";
+
     if (firstNotice || draco.mode === "chase") {
-      draco.lastSeenX = state.player.x; draco.lastSeenY = state.player.y;
+      draco.lastSeenX = state.player.x;
+      draco.lastSeenY = state.player.y;
     }
-    draco.suspicion = clamp(draco.suspicion + dt * (draco.mode === "chase" ? 2.5 : 1.25), 0, 1);
+
+    const noticeSpeed =
+      draco.mode === "chase"
+        ? 2.5 + step * .08
+        : 1.15 + step * .1;
+
+    draco.suspicion = clamp(
+      draco.suspicion + dt * noticeSpeed,
+      0,
+      1,
+    );
+
     if (draco.suspicion >= 1) {
-      draco.mode = "chase"; draco.lastSeenX = state.player.x; draco.lastSeenY = state.player.y; draco.memory = 4;
+      draco.mode = "chase";
+      draco.lastSeenX = state.player.x;
+      draco.lastSeenY = state.player.y;
+      draco.memory = 4;
     } else if (firstNotice) {
-      draco.mode = "alert"; draco.searchTimer = .9 + Math.random() * .55;
+      draco.mode = "alert";
+      draco.searchTimer = .9 + Math.random() * .55;
     }
-  } else if (draco.mode !== "chase") draco.suspicion = Math.max(0, draco.suspicion - dt * .23);
+  } else if (draco.mode !== "chase") {
+    draco.suspicion = Math.max(0, draco.suspicion - dt * .23);
+  }
 
   if (state.decoy) {
-    draco.mode = "chase"; draco.lastSeenX = state.decoy.x; draco.lastSeenY = state.decoy.y; draco.memory = state.decoy.time;
+    draco.mode = "chase";
+    draco.lastSeenX = state.decoy.x;
+    draco.lastSeenY = state.decoy.y;
+    draco.memory = state.decoy.time;
   }
 
   if (draco.mode === "patrol") {
-    moveDracoAlongRoute(draco, dt, controls, slowScale);
+    moveDracoAlongRoute(
+      draco,
+      dt,
+      controls,
+      slowScale,
+      1 + step * .04,
+    );
   } else if (draco.mode === "alert") {
     draco.searchTimer -= dt;
-    moveDracoAlongRoute(draco, dt, controls, slowScale, .82);
-    if (draco.suspicion >= 1) { draco.mode = "chase"; draco.memory = 4; }
-    else if (draco.searchTimer <= 0 && !visible) { draco.mode = "search"; draco.searchTimer = 3.4; }
+
+    moveDracoAlongRoute(
+      draco,
+      dt,
+      controls,
+      slowScale,
+      .82 + step * .035,
+    );
+
+    if (draco.suspicion >= 1) {
+      draco.mode = "chase";
+      draco.memory = 4;
+    } else if (draco.searchTimer <= 0 && !visible) {
+      draco.mode = "search";
+      draco.searchTimer = 3.4;
+    }
   } else if (draco.mode === "chase") {
-    const targetX = state.decoy ? state.decoy.x : draco.lastSeenX;
-    const targetY = state.decoy ? state.decoy.y : draco.lastSeenY;
-    const dx = targetX - draco.x; const dy = targetY - draco.y;
-    controls.left = dx < -12; controls.right = dx > 12;
-    if (dy < -65 && draco.onGround && draco.aiJump <= 0) { draco.jumpBuffer = .12; draco.aiJump = 1.3; }
-    draco.aiJump -= dt; updateEntity(draco, dt, controls, 1.02 * slowScale);
-    if (visible && !state.decoy) draco.memory = 4; else draco.memory -= dt * (state.hidden ? 2.6 : 1);
-    if (draco.memory <= 0) { draco.mode = "search"; draco.searchTimer = 4.4; draco.searchSide = 1; draco.suspicion = .58; }
+    const targetX = state.decoy
+      ? state.decoy.x
+      : draco.lastSeenX;
+
+    const targetY = state.decoy
+      ? state.decoy.y
+      : draco.lastSeenY;
+
+    const dx = targetX - draco.x;
+    const dy = targetY - draco.y;
+
+    controls.left = dx < -12;
+    controls.right = dx > 12;
+
+    if (dy < -65 && draco.onGround && draco.aiJump <= 0) {
+      draco.jumpBuffer = .12;
+      draco.aiJump = 1.3;
+    }
+
+    draco.aiJump -= dt;
+
+    updateEntity(
+      draco,
+      dt,
+      controls,
+      (1.03 + step * .035) * slowScale,
+    );
+
+    if (visible && !state.decoy) {
+      draco.memory = 4;
+    } else {
+      draco.memory -= dt * (state.hidden ? 2.6 : 1);
+    }
+
+    if (draco.memory <= 0) {
+      draco.mode = "search";
+      draco.searchTimer = 4.4;
+      draco.searchSide = 1;
+      draco.suspicion = .58;
+    }
   } else {
     draco.searchTimer -= dt;
-    const targetX = draco.lastSeenX + draco.searchSide * 78;
-    if (Math.abs(targetX - draco.x) < 14) draco.searchSide *= -1;
-    controls.left = targetX < draco.x; controls.right = targetX > draco.x;
-    updateEntity(draco, dt, controls, .48 * slowScale);
-    if (draco.searchTimer <= 0) { draco.mode = "patrol"; draco.suspicion = 0; chooseDracoRoamTarget(draco, true); }
+
+    const targetX =
+      draco.lastSeenX +
+      draco.searchSide * 78;
+
+    if (Math.abs(targetX - draco.x) < 14) {
+      draco.searchSide *= -1;
+    }
+
+    controls.left = targetX < draco.x;
+    controls.right = targetX > draco.x;
+
+    updateEntity(
+      draco,
+      dt,
+      controls,
+      (.48 + step * .02) * slowScale,
+    );
+
+    if (draco.searchTimer <= 0) {
+      draco.mode = "patrol";
+      draco.suspicion = 0;
+      chooseDracoRoamTarget(draco, true);
+    }
   }
 
   keepDracoMoving(draco, dt);
 
   const close = distance(draco, state.player);
-  if (state.hidden && state.hideTimer > 5.2 && close < 78) {
-    state.hidden = false; state.hiddenSpot = null; takeDamage("Draco found your hiding place!");
-  } else if (!state.hidden && state.invisibleTimer <= 0 && state.damageCooldown <= 0 && close < 58 && overlaps(state.player, draco, 4)) takeDamage("Draco caught up with you!");
+
+  if (
+    state.hidden &&
+    state.hideTimer > hideTimeLimit() &&
+    close < 78
+  ) {
+    state.hidden = false;
+    state.hiddenSpot = null;
+    takeDamage("Draco found your hiding place!");
+  } else if (
+    !state.hidden &&
+    state.invisibleTimer <= 0 &&
+    state.damageCooldown <= 0 &&
+    close < 58 &&
+    overlaps(state.player, draco, 4)
+  ) {
+    takeDamage("Draco caught up with you!");
+  }
 }
 
 function chooseThiefRoamTarget(thief, forceDifferent = false) {
@@ -719,7 +977,7 @@ function tryThiefHide(thief, threatDistance) {
     .map((spot) => ({ spot, gap: Math.hypot((spot.x + spot.w / 2) - thief.x, (spot.y + spot.h / 2) - thief.y) }))
     .filter(({ gap }) => gap < 235)
     .sort((a, b) => a.gap - b.gap);
-  if (!spots.length || Math.random() > .42) return false;
+  if (!spots.length || Math.random() > .38 + difficultyStep() * .05) return false;
   const spot = spots[Math.min(spots.length - 1, Math.floor(Math.random() * 2))].spot;
   thief.hidden = true; thief.hideSpot = spot; thief.hideTimer = 1.4 + Math.random() * 2.25; thief.hideReveal = 0;
   thief.vx = 0; thief.vy = 0; thief.climbing = false;
@@ -744,7 +1002,15 @@ function useThiefAiAbility(thief, threatDistance) {
     thief.invisible = 1.45; thief.boostTimer = .78;
   } else used = false;
   if (!used) return;
-  thief.abilityCooldown = Math.max(5.4, CHARACTERS[thief.id].cooldown * .7) + Math.random() * 2.4;
+  thief.abilityCooldown =
+  Math.max(
+    4.7,
+    Math.max(
+      5.4,
+      CHARACTERS[thief.id].cooldown * .7,
+    ) - difficultyStep() * .38,
+  ) +
+  Math.random() * 2.2;
   thief.pulse = .48; burst(thief.x + thief.w / 2, thief.y + thief.h / 2, CHARACTERS[thief.id].color, 10);
 }
 
@@ -792,7 +1058,10 @@ function updateThiefAi(enemy, dt) {
   const sockNeedsJump = targetSock && Math.abs(targetSock.x - (enemy.x + enemy.w / 2)) < 74 && targetSock.y < enemy.y + enemy.h * .3;
   if (sockNeedsJump && enemy.onGround && enemy.aiJump <= 0) { enemy.jumpBuffer = .12; enemy.aiJump = .75 + Math.random() * .45; }
   if (!climb && dy < -38 && enemy.onGround && enemy.aiJump <= 0) { enemy.jumpBuffer = .12; enemy.aiJump = .7 + Math.random() * .7; }
-  const speed = (threatDistance < 320 ? .76 : enemy.roamSpeed) * (enemy.boostTimer > 0 ? 1.18 : 1);
+  const speed =
+  (threatDistance < 320 ? .76 : enemy.roamSpeed) *
+  (enemy.boostTimer > 0 ? 1.18 : 1) *
+  (1 + difficultyStep() * .05);
   updateEntity(enemy, dt, controls, speed);
 
   enemy.stuckCheckTimer -= dt;
@@ -884,12 +1153,40 @@ function sockGoalText(count) { return count === 1 ? "the last sock" : `all ${cou
 
 function stealSock(thief, item) {
   if (item.collected || !thief.active || !state.running) return;
-  item.collected = true; state.collected += 1; thief.lootCooldown = 6.5 + Math.random() * 3.5;
-  state.enemies.forEach((enemy) => { if (enemy.lootTarget === item.index) enemy.lootTarget = -1; });
-  burst(item.x, item.y, CHARACTERS[thief.id].color, 14);
-  showHint(`${CHARACTERS[thief.id].name} stole a sock · ${state.collected}/${guardSockTotal()}`, 1.8);
-  if (state.collected >= guardSockTotal()) finishLevel(false, "The Crew stole every sock.");
-  else chooseThiefRoamTarget(thief, true);
+
+  item.collected = true;
+  state.collected += 1;
+
+  thief.lootCooldown =
+    Math.max(
+      4.7,
+      6.3 - difficultyStep() * .45,
+    ) +
+    Math.random() * 3;
+
+  state.enemies.forEach((enemy) => {
+    if (enemy.lootTarget === item.index) {
+      enemy.lootTarget = -1;
+    }
+  });
+
+  burst(
+    item.x,
+    item.y,
+    CHARACTERS[thief.id].color,
+    14,
+  );
+
+  showHint(
+    `${CHARACTERS[thief.id].name} stole a sock · ${state.collected}/${guardSockTotal()}`,
+    1.8,
+  );
+
+  if (state.collected >= guardSockTotal()) {
+    finishLevel(false, "The Crew stole every sock.");
+  } else {
+    chooseThiefRoamTarget(thief, true);
+  }
 }
 
 function catchEnemy(enemy) {
@@ -910,7 +1207,17 @@ function takeDamage(message) {
   state.hearts -= 1; state.damageCooldown = 1.8; state.hidden = false; state.hiddenSpot = null; state.hideTimer = 0;
   burst(state.player.x + state.player.w / 2, state.player.y + state.player.h / 2, "#ff5b68", 17);
   if (state.hearts <= 0) { finishLevel(false, message); return; }
-  const spawn = state.level.playerSpawn.thief; state.player.x = spawn[0]; state.player.y = spawn[1]; state.player.prevX = spawn[0]; state.player.prevY = spawn[1];
+  const spawn =
+  state.level.playerSpawn[
+    state.selectedId === "draco"
+      ? "guard"
+      : "thief"
+  ];
+
+state.player.x = spawn[0];
+state.player.y = spawn[1];
+state.player.prevX = spawn[0];
+state.player.prevY = spawn[1];
   state.player.vx = 0; state.player.vy = 0; resetDracoAfterCatch(); showHint(`${message} ${state.hearts} lives left.`, 2.7);
 }
 
@@ -937,8 +1244,17 @@ function updateStealthHud() {
   const draco = state.enemies[0]; if (!draco) return;
   if (state.hidden) {
     dom.stealth.classList.add("hidden-state"); dom.stealthIcon.textContent = "◌"; dom.stealthState.textContent = "HIDDEN";
-    dom.stealthTip.textContent = state.hideTimer > 5 ? "You are starting to make noise…" : `Safe for ${Math.max(0, 6 - state.hideTimer).toFixed(1)} s`;
-    dom.stealthFill.style.width = `${clamp(state.hideTimer / 6 * 100, 0, 100)}%`; return;
+    const safeTime = hideTimeLimit();
+
+dom.stealthTip.textContent =
+  state.hideTimer > safeTime - .25
+    ? "You are starting to make noise…"
+    : `Safe for ${Math.max(0, safeTime - state.hideTimer).toFixed(1)} s`;
+
+dom.stealthFill.style.width =
+  `${clamp(state.hideTimer / safeTime * 100, 0, 100)}%`;
+
+return;
   }
   if (draco.mode === "chase") {
     dom.stealth.classList.add("chase"); dom.stealthIcon.textContent = "!"; dom.stealthState.textContent = "SPOTTED – HIDE";
@@ -1022,13 +1338,99 @@ furniture.forEach((surface) => {
     ctx.fillStyle = "rgba(5,14,23,.88)"; ctx.fillRect(climb.x - 8, climb.y - 25, Math.max(90, climb.w + 30), 20);
     ctx.fillStyle = "#bdeeff"; ctx.font = "800 10px system-ui"; ctx.textAlign = "left"; ctx.fillText("W/S  CLIMB", climb.x, climb.y - 11);
   });
-  if (state.selectedId !== "draco" && !state.hidden) {
-    const spot = nearbyHideSpot();
-    if (spot) {
-      ctx.globalAlpha = .8; ctx.fillStyle = "rgba(4,10,18,.78)"; ctx.fillRect(spot.x + spot.w / 2 - 49, spot.y - 26, 98, 21);
-      ctx.fillStyle = "#e8c6f4"; ctx.font = "900 10px system-ui"; ctx.textAlign = "center"; ctx.fillText("Q  HIDE", spot.x + spot.w / 2, spot.y - 12);
-    }
-  }
+  const nearbySpot =
+  state.selectedId !== "draco" && !state.hidden
+    ? nearbyHideSpot()
+    : null;
+
+state.level.hideSpots.forEach((spot) => {
+  const active = spot === nearbySpot;
+  const guardView = state.selectedId === "draco";
+
+  ctx.save();
+
+  ctx.globalAlpha =
+    active
+      ? .86
+      : guardView
+        ? .34
+        : .26;
+
+  ctx.fillStyle =
+    active
+      ? "rgba(104,46,126,.24)"
+      : "rgba(49,22,63,.14)";
+
+  ctx.strokeStyle =
+    active
+      ? "#e6b6f6"
+      : "#b77acb";
+
+  ctx.lineWidth = active ? 3 : 2;
+  ctx.setLineDash(active ? [] : [8, 7]);
+
+  ctx.fillRect(
+    spot.x,
+    spot.y,
+    spot.w,
+    spot.h,
+  );
+
+  ctx.strokeRect(
+    spot.x,
+    spot.y,
+    spot.w,
+    spot.h,
+  );
+
+  ctx.setLineDash([]);
+
+  const shortLabel =
+    guardView
+      ? "SEARCH"
+      : active
+        ? coarsePointer.matches
+          ? "HIDE"
+          : "Q  HIDE"
+        : "HIDE";
+
+  const fullLabel =
+    active
+      ? `${shortLabel} · ${spot.label.toUpperCase()}`
+      : shortLabel;
+
+  ctx.font = "900 10px system-ui";
+
+  const tagWidth = Math.min(
+    220,
+    Math.max(
+      52,
+      ctx.measureText(fullLabel).width + 18,
+    ),
+  );
+
+  const center = spot.x + spot.w / 2;
+
+  ctx.fillStyle = "rgba(15,6,20,.88)";
+
+  ctx.fillRect(
+    center - tagWidth / 2,
+    spot.y - 24,
+    tagWidth,
+    19,
+  );
+
+  ctx.fillStyle = "#efd1f8";
+  ctx.textAlign = "center";
+
+  ctx.fillText(
+    fullLabel,
+    center,
+    spot.y - 11,
+  );
+
+  ctx.restore();
+});
   state.level.noiseZones.forEach((zone, index) => {
     ctx.globalAlpha = .18 + Math.sin(state.elapsed * 3 + index) * .06; ctx.strokeStyle = "#f3b55c"; ctx.lineWidth = 2;
     ctx.beginPath(); ctx.moveTo(zone.x, zone.y); ctx.lineTo(zone.x + zone.w * .35, zone.y - 3); ctx.lineTo(zone.x + zone.w * .65, zone.y + 2); ctx.lineTo(zone.x + zone.w, zone.y - 2); ctx.stroke();
@@ -1063,34 +1465,173 @@ function drawExit() {
   ctx.fillStyle = unlocked ? "#ffc56a" : "#9aa6ad"; ctx.font = "900 10px system-ui"; ctx.textAlign = "center"; ctx.fillText(unlocked ? "ESCAPE" : "LOCKED", exit.x + exit.w / 2, exit.y - 9); ctx.restore();
 }
 
+function traceSockShape() {
+  ctx.beginPath();
+  ctx.moveTo(-7, -12);
+  ctx.lineTo(6, -12);
+  ctx.lineTo(5, 1);
+  ctx.quadraticCurveTo(14, 1, 13, 8);
+  ctx.quadraticCurveTo(7, 14, -6, 9);
+  ctx.lineTo(-3, 2);
+  ctx.closePath();
+}
+
+function drawProtectedSock(item, y) {
+  const pulse =
+    1 +
+    Math.sin(
+      state.elapsed * 3.4 + item.phase,
+    ) * .045;
+
+  ctx.save();
+  ctx.translate(item.x, y);
+  ctx.scale(pulse, pulse);
+
+  ctx.shadowColor = "#67d8ff";
+  ctx.shadowBlur = 18;
+  ctx.fillStyle = "rgba(8,45,68,.88)";
+  ctx.strokeStyle = "#8be3ff";
+  ctx.lineWidth = 2.4;
+
+  ctx.beginPath();
+
+  for (let index = 0; index < 6; index += 1) {
+    const angle =
+      Math.PI / 3 * index -
+      Math.PI / 2;
+
+    const x = Math.cos(angle) * 21;
+    const pointY = Math.sin(angle) * 21;
+
+    if (index === 0) {
+      ctx.moveTo(x, pointY);
+    } else {
+      ctx.lineTo(x, pointY);
+    }
+  }
+
+  ctx.closePath();
+  ctx.fill();
+  ctx.stroke();
+
+  ctx.shadowBlur = 5;
+  ctx.fillStyle = "#bfefff";
+  ctx.strokeStyle = "#14384c";
+  ctx.lineWidth = 2;
+
+  ctx.save();
+  ctx.scale(.76, .76);
+  traceSockShape();
+  ctx.fill();
+  ctx.stroke();
+  ctx.restore();
+
+  ctx.shadowBlur = 0;
+  ctx.fillStyle = "#dff8ff";
+  ctx.font = "900 8px system-ui";
+  ctx.textAlign = "center";
+  ctx.fillText("PROTECT", 0, -29);
+
+  ctx.restore();
+}
+
 function drawItem(item) {
-  if (item.collected || (state.selectedId === "draco" && item.kind !== "sock")) return;
-  const y = item.y + Math.sin(state.elapsed * 3.1 + item.phase) * 4;
-  ctx.save(); ctx.translate(item.x, y); ctx.shadowBlur = 16; ctx.shadowColor = "#ffad4b"; ctx.fillStyle = "#ffc269"; ctx.strokeStyle = "#5d2e0c"; ctx.lineWidth = 2;
-  if (state.selectedId === "draco") {
-    const markerRadius = 19 + Math.sin(state.elapsed * 4.2 + item.phase) * 2;
-    ctx.save(); ctx.shadowColor = "#73d5f7"; ctx.shadowBlur = 14; ctx.strokeStyle = "rgba(157,230,255,.92)"; ctx.lineWidth = 2;
-    ctx.beginPath(); ctx.arc(0, 0, markerRadius, 0, Math.PI * 2); ctx.stroke();
-    ctx.shadowBlur = 0; ctx.fillStyle = "#dff8ff"; ctx.font = "900 8px system-ui"; ctx.textAlign = "center"; ctx.fillText("SOCK", 0, -25); ctx.restore();
+  if (
+    item.collected ||
+    (
+      state.selectedId === "draco" &&
+      item.kind !== "sock"
+    )
+  ) {
+    return;
   }
+
+  const y =
+    item.y +
+    Math.sin(
+      state.elapsed * 3.1 + item.phase,
+    ) * 4;
+
+  if (item.protected) {
+    drawProtectedSock(item, y);
+    return;
+  }
+
+  ctx.save();
+  ctx.translate(item.x, y);
+  ctx.shadowBlur = 16;
+  ctx.shadowColor = "#ffad4b";
+  ctx.fillStyle = "#ffc269";
+  ctx.strokeStyle = "#5d2e0c";
+  ctx.lineWidth = 2;
+
   if (item.kind === "sock") {
-    ctx.beginPath(); ctx.moveTo(-7,-12); ctx.lineTo(6,-12); ctx.lineTo(5,1); ctx.quadraticCurveTo(14,1,13,8); ctx.quadraticCurveTo(7,14,-6,9); ctx.lineTo(-3,2); ctx.closePath(); ctx.fill(); ctx.stroke();
+    traceSockShape();
+    ctx.fill();
+    ctx.stroke();
   } else if (item.kind === "key") {
-    ctx.beginPath(); ctx.arc(-6,-4,6,0,Math.PI*2); ctx.moveTo(0,0); ctx.lineTo(13,10); ctx.lineTo(9,14); ctx.lineTo(5,9); ctx.stroke();
+    ctx.beginPath();
+    ctx.arc(-6, -4, 6, 0, Math.PI * 2);
+    ctx.moveTo(0, 0);
+    ctx.lineTo(13, 10);
+    ctx.lineTo(9, 14);
+    ctx.lineTo(5, 9);
+    ctx.stroke();
   } else if (item.kind === "button") {
-    ctx.beginPath(); ctx.arc(0,0,10,0,Math.PI*2); ctx.fill(); ctx.stroke(); ctx.fillStyle="#6b3510";
-    [[-3,-3],[3,-3],[-3,3],[3,3]].forEach(([dx,dy])=>{ctx.beginPath();ctx.arc(dx,dy,1.5,0,Math.PI*2);ctx.fill();});
+    ctx.beginPath();
+    ctx.arc(0, 0, 10, 0, Math.PI * 2);
+    ctx.fill();
+    ctx.stroke();
+    ctx.fillStyle = "#6b3510";
+
+    [[-3,-3], [3,-3], [-3,3], [3,3]].forEach(([dx, dy]) => {
+      ctx.beginPath();
+      ctx.arc(dx, dy, 1.5, 0, Math.PI * 2);
+      ctx.fill();
+    });
   } else if (item.kind === "spoon") {
-    ctx.beginPath(); ctx.ellipse(-4,-6,6,9,-.45,0,Math.PI*2); ctx.fill(); ctx.stroke(); ctx.beginPath(); ctx.moveTo(0,0); ctx.lineTo(11,14); ctx.stroke();
+    ctx.beginPath();
+    ctx.ellipse(-4, -6, 6, 9, -.45, 0, Math.PI * 2);
+    ctx.fill();
+    ctx.stroke();
+    ctx.beginPath();
+    ctx.moveTo(0, 0);
+    ctx.lineTo(11, 14);
+    ctx.stroke();
   } else if (item.kind === "spool") {
-    ctx.fillRect(-8,-9,16,18); ctx.strokeRect(-8,-9,16,18); ctx.strokeStyle="#c65f28";
-    for(let yy=-6;yy<=6;yy+=4){ctx.beginPath();ctx.moveTo(-7,yy);ctx.lineTo(7,yy);ctx.stroke();}
+    ctx.fillRect(-8, -9, 16, 18);
+    ctx.strokeRect(-8, -9, 16, 18);
+    ctx.strokeStyle = "#c65f28";
+
+    for (let yy = -6; yy <= 6; yy += 4) {
+      ctx.beginPath();
+      ctx.moveTo(-7, yy);
+      ctx.lineTo(7, yy);
+      ctx.stroke();
+    }
   } else if (item.kind === "remote") {
-    ctx.rotate(-.22); ctx.fillStyle="#e6d1a2"; ctx.fillRect(-7,-13,14,26); ctx.strokeRect(-7,-13,14,26); ctx.fillStyle="#6b3510";
-    for(let yy=-8;yy<8;yy+=6){ctx.beginPath();ctx.arc(0,yy,1.5,0,Math.PI*2);ctx.fill();}
+    ctx.rotate(-.22);
+    ctx.fillStyle = "#e6d1a2";
+    ctx.fillRect(-7, -13, 14, 26);
+    ctx.strokeRect(-7, -13, 14, 26);
+    ctx.fillStyle = "#6b3510";
+
+    for (let yy = -8; yy < 8; yy += 6) {
+      ctx.beginPath();
+      ctx.arc(0, yy, 1.5, 0, Math.PI * 2);
+      ctx.fill();
+    }
   } else {
-    ctx.beginPath();ctx.moveTo(-11,-5);ctx.quadraticCurveTo(0,-14,11,-5);ctx.lineTo(6,8);ctx.quadraticCurveTo(0,3,-6,8);ctx.closePath();ctx.fill();ctx.stroke();
+    ctx.beginPath();
+    ctx.moveTo(-11, -5);
+    ctx.quadraticCurveTo(0, -14, 11, -5);
+    ctx.lineTo(6, 8);
+    ctx.quadraticCurveTo(0, 3, -6, 8);
+    ctx.closePath();
+    ctx.fill();
+    ctx.stroke();
   }
+
   ctx.restore();
 }
 
@@ -1154,7 +1695,17 @@ function render(interpolation = 1) {
   drawCharacter(state.player, interpolation, playerAlpha);
   if (state.hidden && state.hiddenSpot) {
     ctx.fillStyle = "rgba(5,14,23,.86)"; ctx.fillRect(state.hiddenSpot.x + state.hiddenSpot.w / 2 - 52, state.hiddenSpot.y + 8, 104, 22);
-    ctx.fillStyle = "#bfeeff"; ctx.font = "900 10px system-ui"; ctx.textAlign = "center"; ctx.fillText("Q  LEAVE", state.hiddenSpot.x + state.hiddenSpot.w / 2, state.hiddenSpot.y + 23);
+    ctx.fillStyle = "#bfeeff";
+ctx.font = "900 10px system-ui";
+ctx.textAlign = "center";
+
+ctx.fillText(
+  coarsePointer.matches
+    ? "HIDE · LEAVE"
+    : "Q  LEAVE",
+  state.hiddenSpot.x + state.hiddenSpot.w / 2,
+  state.hiddenSpot.y + 23,
+);
   }
   if (state.player.pulse > 0) {
     state.player.pulse = Math.max(0, state.player.pulse - 1 / 60); const radius = (.62 - state.player.pulse) * 270;
@@ -1183,7 +1734,17 @@ function finishLevel(success, reason = "") {
 function goToLevels() { state.running = false; state.paused = false; setGameChrome(false); buildLevelCards(); showScreen("levels"); }
 function pauseGame() { if (!state.running) return; state.paused = true; keys.clear(); touchKeys.clear(); screens.pause.classList.add("active"); syncAudioForContext(); }
 function resumeGame() { if (!state.running) return; state.paused = false; screens.pause.classList.remove("active"); state.screen = "game"; lastFrame = performance.now(); syncAudioForContext(); }
-function openRules() { state.pauseBeforeRules = state.paused; if (state.running) state.paused = true; dom.rules.classList.remove("hidden"); syncAudioForContext(); }
+function openRules() {
+  updateRulesContext();
+  state.pauseBeforeRules = state.paused;
+
+  if (state.running) {
+    state.paused = true;
+  }
+
+  dom.rules.classList.remove("hidden");
+  syncAudioForContext();
+}
 function closeRules() { dom.rules.classList.add("hidden"); if (state.running && !state.pauseBeforeRules) { state.paused = false; lastFrame = performance.now(); } syncAudioForContext(); }
 
 function introMusicAllowed() {
@@ -1294,14 +1855,88 @@ function bindEvents() {
     if (CONTROLS.pause.includes(event.code)) { if (!dom.rules.classList.contains("hidden")) closeRules(); else if (state.paused) resumeGame(); else pauseGame(); }
     if (CONTROLS.music.includes(event.code)) toggleMusic();
   });
-  window.addEventListener("keyup", (event) => keys.delete(event.code));
-  window.addEventListener("blur", () => { if (state.running && !state.paused) pauseGame(); });
-  $$('[data-control]').forEach((button) => {
-    const action = button.dataset.control;
-    const start = (event) => { event.preventDefault(); if (action === "jump") queueJump(); else if (action === "ability") useAbility(); else if (action === "hide") toggleHide(); else touchKeys.add(action); };
-    const end = (event) => { event.preventDefault(); touchKeys.delete(action); };
-    button.addEventListener("pointerdown", start); button.addEventListener("pointerup", end); button.addEventListener("pointercancel", end); button.addEventListener("pointerleave", end);
-  });
+  window.addEventListener(
+  "keyup",
+  (event) => keys.delete(event.code),
+);
+
+window.addEventListener("blur", () => {
+  if (state.running && !state.paused) {
+    pauseGame();
+  }
+});
+
+document.addEventListener("visibilitychange", () => {
+  if (
+    document.hidden &&
+    state.running &&
+    !state.paused
+  ) {
+    pauseGame();
+  }
+});
+
+$$('[data-control]').forEach((button) => {
+  const action = button.dataset.control;
+
+  const start = (event) => {
+    event.preventDefault();
+
+    button.setPointerCapture?.(
+      event.pointerId,
+    );
+
+    if (action === "jump") {
+      queueJump();
+    } else if (action === "ability") {
+      useAbility();
+    } else if (action === "hide") {
+      toggleHide();
+    } else {
+      touchKeys.add(action);
+    }
+  };
+
+  const end = (event) => {
+    event.preventDefault();
+    touchKeys.delete(action);
+
+    if (
+      button.hasPointerCapture?.(
+        event.pointerId,
+      )
+    ) {
+      button.releasePointerCapture(
+        event.pointerId,
+      );
+    }
+  };
+
+  button.addEventListener(
+    "pointerdown",
+    start,
+  );
+
+  button.addEventListener(
+    "pointerup",
+    end,
+  );
+
+  button.addEventListener(
+    "pointercancel",
+    end,
+  );
+
+  button.addEventListener(
+    "lostpointercapture",
+    () => touchKeys.delete(action),
+  );
+
+  button.addEventListener(
+    "contextmenu",
+    (event) => event.preventDefault(),
+  );
+});
 }
 
 bindEvents(); syncAudioForContext(); requestAnimationFrame(frame);

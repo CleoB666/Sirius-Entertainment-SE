@@ -16,7 +16,12 @@
     <main id="app">
       <section id="gameShell" class="game-shell" aria-label="The Sock Heist">
         <canvas id="gameCanvas" width="1280" height="720" aria-label="Game area"></canvas>
-        <div class="vignette" aria-hidden="true"></div>
+<div class="vignette" aria-hidden="true"></div>
+<div class="rotate-notice" role="status">
+  <span aria-hidden="true">↻</span>
+  <strong>ROTATE YOUR DEVICE</strong>
+  <p>The rooms are designed for landscape play. Turn your phone or tablet sideways to continue.</p>
+</div>
 
         <header id="hud" class="hud hidden">
           <div class="hud-cluster">
@@ -118,7 +123,7 @@
               <span><kbd>A</kbd><kbd>D</kbd> Move</span>
               <span><kbd>W</kbd><kbd>S</kbd> Climb</span>
               <span><kbd>SPACE</kbd> Jump</span>
-              <span><kbd>Q</kbd> Hide</span>
+              <span id="briefingHideControl"><kbd>Q</kbd> Hide</span>
               <span><kbd>E</kbd> Ability</span>
             </div>
             <div class="start-actions">
@@ -153,61 +158,135 @@
         </section>
 
         <section id="rulesModal" class="rules-modal hidden" role="dialog" aria-modal="true" aria-labelledby="rulesTitle">
-          <div class="rules-card">
-            <button id="closeRulesBtn" class="close-btn" type="button" aria-label="Close rules">×</button>
-            <p class="overline">HOW IT WORKS</p>
-            <h2 id="rulesTitle">GAME RULES</h2>
-            <div class="rules-columns">
-              <article>
-                <span class="role-badge thief">SOCK THIEF</span>
-                <h3>Steal and escape</h3>
-                <ol>
-                  <li>Move across the floor and the highlighted tops of furniture. The light lines show exactly where you can land.</li>
-                  <li>Jump toward a furniture edge to grab it and pull yourself up. Use W/S near marked fabric, handles and pipes.</li>
-                  <li>Watch the warning meter: Draco roams unpredictably until he sees or hears you.</li>
-                  <li>Break the chase, then press Q near beds, baskets, cabinets or other dark hiding places.</li>
-                  <li>Once every item is collected, reach the orange exit.</li>
-                </ol>
-              </article>
-              <article>
-                <span class="role-badge guard">DRACO</span>
-                <h3>Guard the house</h3>
-                <ol>
-                  <li>Search the entire room and catch every sock thief before they steal all the socks. Draco has no time limit.</li>
-                  <li>Jump toward furniture edges to grab them, then climb farther through the room.</li>
-                  <li>The thieves run, jump, climb, use their own abilities and hide when you get close.</li>
-                  <li>Touch a visible thief to catch them. Search near dark hiding places to flush out a hidden thief.</li>
-                  <li>Guardian Pulse briefly stuns nearby thieves, but does not catch them automatically.</li>
-                  <li>Catch them all before the sock counter reaches zero to complete the level.</li>
-                </ol>
-              </article>
-            </div>
-            <div class="rules-section">
-              <h3>Controls</h3>
-              <div class="control-grid">
-                <span><kbd>A</kbd><kbd>D</kbd> / <kbd>←</kbd><kbd>→</kbd><b>Move</b></span>
-                <span><kbd>SPACE</kbd><b>Jump – hold toward an edge to pull yourself up</b></span>
-                <span><kbd>W</kbd><kbd>S</kbd> / <kbd>↑</kbd><kbd>↓</kbd><b>Climb fabric, furniture and pipes</b></span>
-                <span><kbd>Q</kbd> / <kbd>F</kbd><b>Hide or leave your hiding place</b></span>
-                <span><kbd>E</kbd> / <kbd>SHIFT</kbd><b>Special ability</b></span>
-                <span><kbd>P</kbd> / <kbd>ESC</kbd><b>Pause</b></span>
-                <span><kbd>M</kbd><b>Music on/off</b></span>
-              </div>
-            </div>
-            <div class="rules-section stealth-rules">
-              <h3>Draco warning</h3>
-              <div><span class="signal safe">CLEAR</span><p>Draco is roaming between the floor and furniture but has not noticed you.</p></div>
-              <div><span class="signal wary">SUSPICIOUS</span><p>He heard or saw something. Slow down and leave the area.</p></div>
-              <div><span class="signal chase">SPOTTED</span><p>Draco is chasing you. Break his line of sight and reach a hiding place.</p></div>
-              <div><span class="signal search">SEARCHING</span><p>He is checking where he last saw you. Wait until the room is clear.</p></div>
-            </div>
-            <div class="rules-section">
-              <h3>Character abilities</h3>
-              <div id="abilityRules" class="ability-rules"></div>
-            </div>
-            <p class="rules-tip">Tip: running footsteps and marked floor zones make more noise. Progress is saved automatically in your browser.</p>
-          </div>
-        </section>
+  <div class="rules-card">
+    <button id="closeRulesBtn" class="close-btn" type="button" aria-label="Close rules">×</button>
+    <p class="overline">HOW IT WORKS</p>
+    <h2 id="rulesTitle">GAME RULES</h2>
+
+    <div id="rulesContext" class="rules-context" aria-live="polite">
+      <div>
+        <small>SELECTED CHARACTER</small>
+        <strong id="rulesCharacter">Clawster</strong>
+      </div>
+
+      <div>
+        <small>CURRENT LEVEL</small>
+        <strong id="rulesLevel">Bedroom · Difficulty 1/4</strong>
+      </div>
+
+      <div class="rules-objective">
+        <small>YOUR OBJECTIVE</small>
+        <strong id="rulesObjective"></strong>
+      </div>
+
+      <p id="rulesLevelTip"></p>
+    </div>
+
+    <div class="rules-columns">
+      <article id="thiefRulesArticle">
+        <span class="role-badge thief">SOCK THIEF</span>
+        <h3>Steal and escape</h3>
+
+        <ol>
+          <li>Collect every orange loot item in the room. Socks, keys, buttons and other objects all count toward the objective.</li>
+          <li>Move on the floor and the highlighted furniture tops. Gaps between the light lines are not landing surfaces.</li>
+          <li>Jump toward an edge to pull yourself up. Use W/S near marked fabric, handles and pipes to climb.</li>
+          <li>Watch the warning meter: Draco roams unpredictably until he sees or hears you.</li>
+          <li>Violet outlines mark hiding places. Break Draco's line of sight, move close and press Q, F or the HIDE touch button.</li>
+          <li>Collect everything before time runs out, then reach the orange exit.</li>
+        </ol>
+      </article>
+
+      <article id="guardRulesArticle">
+        <span class="role-badge guard">DRACO</span>
+        <h3>Guard the house</h3>
+
+        <ol>
+          <li>Blue shield markers are socks to protect. Draco cannot collect them; they show where the Crew is heading.</li>
+          <li>Catch every thief before all protected socks disappear. Draco has no time limit.</li>
+          <li>Move, jump and climb through the same room routes as the Crew.</li>
+          <li>The thieves run, jump, climb, use their own abilities and hide when you get close.</li>
+          <li>Touch a visible thief to catch them. Violet hiding markers show where a thief may disappear.</li>
+          <li>Guardian Pulse briefly stuns nearby thieves, but does not catch them automatically.</li>
+        </ol>
+      </article>
+    </div>
+
+    <div class="rules-section">
+      <h3>Controls</h3>
+
+      <div class="control-grid">
+        <span>
+          <kbd>A</kbd><kbd>D</kbd> / <kbd>←</kbd><kbd>→</kbd>
+          <b>Move</b>
+        </span>
+
+        <span>
+          <kbd>SPACE</kbd>
+          <b>Jump – hold toward an edge to pull yourself up</b>
+        </span>
+
+        <span>
+          <kbd>W</kbd><kbd>S</kbd> / <kbd>↑</kbd><kbd>↓</kbd>
+          <b>Climb fabric, furniture and pipes</b>
+        </span>
+
+        <span id="hideControlRule">
+          <kbd>Q</kbd> / <kbd>F</kbd>
+          <b>Hide or leave your hiding place</b>
+        </span>
+
+        <span>
+          <kbd>E</kbd> / <kbd>SHIFT</kbd>
+          <b>Special ability</b>
+        </span>
+
+        <span>
+          <kbd>P</kbd> / <kbd>ESC</kbd>
+          <b>Pause</b>
+        </span>
+
+        <span>
+          <kbd>M</kbd>
+          <b>Music on/off</b>
+        </span>
+      </div>
+    </div>
+
+    <div class="rules-section stealth-rules">
+      <h3>Draco warning</h3>
+
+      <div>
+        <span class="signal safe">CLEAR</span>
+        <p>Draco is roaming between the floor and furniture but has not noticed you.</p>
+      </div>
+
+      <div>
+        <span class="signal wary">SUSPICIOUS</span>
+        <p>He heard or saw something. Slow down and leave the area.</p>
+      </div>
+
+      <div>
+        <span class="signal chase">SPOTTED</span>
+        <p>Draco is chasing you. Break his line of sight and reach a hiding place.</p>
+      </div>
+
+      <div>
+        <span class="signal search">SEARCHING</span>
+        <p>He is checking where he last saw you. Wait until the room is clear.</p>
+      </div>
+    </div>
+
+    <div class="rules-section">
+      <h3>Selected ability</h3>
+      <div id="abilityRules" class="ability-rules"></div>
+    </div>
+
+    <p class="rules-tip">
+      Tip: running footsteps and marked floor zones make more noise. Progress is saved automatically in your browser.
+    </p>
+  </div>
+</section>
 
         <nav id="touchControls" class="touch-controls hidden" aria-label="Touch controls">
           <div>
