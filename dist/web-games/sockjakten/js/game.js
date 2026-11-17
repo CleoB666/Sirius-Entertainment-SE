@@ -182,6 +182,135 @@ function makeCharacterPortrait(id) {
   return portrait;
 }
 
+// Shared start-menu easter egg. Only runs on the intro screen.
+// Positions use the original 1672 x 941 cast illustration; no artwork is replaced.
+function setupTongueCast() {
+  const mount = dom.startCast;
+  mount.textContent = '';
+  const cast = document.createElement('img');
+  cast.className = 'start-cast-image';
+  cast.src = 'assets/crew-cast.png';
+  cast.alt = '';
+  mount.append(cast);
+  // Mouth positions in the original image, left to right plus Draco.
+  const mouths = [
+    {label:'Strappy', x:.237, y:.712},
+    {label:'Clawster', x:.357, y:.812},
+    {label:'Trasselsudd', x:.492, y:.800},
+    {label:'Gramp', x:.676, y:.785},
+    {label:'Lairy', x:.848, y:.768},
+    {label:'Draco', x:.669, y:.266},
+  ];
+  const buttons = mouths.map((spot, index) => {
+    const button = document.createElement('button');
+    button.type = 'button';
+    button.className = 'cast-tongue';
+    button.setAttribute('aria-label', spot.label + ' is sticking out their tongue! Click for a group reaction.');
+    button.title = 'Catch the cheeky tongue!';
+    const tongue = document.createElement('span');
+    tongue.className = 'cast-tongue-shape';
+    tongue.setAttribute('aria-hidden', 'true');
+    button.append(tongue);
+    button.addEventListener('click', (event) => {
+      event.stopPropagation();
+      if (!button.classList.contains('is-visible') || !mount.classList.contains('tongue-one')) return;
+      const now = performance.now();
+      state._tongueAllUntil = now + 2000;
+      state._tongueNextAt = now + 12000;
+      mount.classList.remove('tongue-one');
+      mount.classList.add('tongue-all');
+      buttons.forEach(b => b.classList.add('is-visible'));
+    });
+    mount.append(button);
+    return button;
+  });
+  const layout = () => {
+    const w = mount.clientWidth, h = mount.clientHeight;
+    if (!w || !h) return;
+    const scale = Math.min(w / 1672, h / 941);
+    const left = w - 1672 * scale;
+    const top = h - 941 * scale;
+    mouths.forEach((spot, i) => {
+      buttons[i].style.left = Math.round(left + 1672 * scale * spot.x) + 'px';
+      buttons[i].style.top = Math.round(top + 941 * scale * spot.y) + 'px';
+    });
+  };
+  if (typeof ResizeObserver !== 'undefined') new ResizeObserver(layout).observe(mount);
+  else window.addEventListener('resize', layout);
+  cast.addEventListener('load', layout);
+  let lastIndex = -1;
+  let menuWasVisible = false;
+  const resetVisual = () => {
+    mount.classList.remove('tongue-one', 'tongue-all');
+    buttons.forEach(button => button.classList.remove('is-visible'));
+  };
+  setInterval(() => {
+    const visible = state.screen === 'start' && !document.hidden && dom.rules.classList.contains('hidden');
+    const now = performance.now();
+    if (!visible) { if (menuWasVisible) resetVisual(); menuWasVisible = false; return; }
+    if (!menuWasVisible) { menuWasVisible = true; state._tongueNextAt = now + 10000; state._tongueAllUntil = 0; layout(); }
+    if (state._tongueAllUntil > 0) {
+      if (now < state._tongueAllUntil) return;
+      state._tongueAllUntil = 0;
+      resetVisual();
+    }
+    if (now >= state._tongueNextAt) {
+      let index = Math.floor(Math.random() * (lastIndex < 0 ? mouths.length : mouths.length - 1));
+      if (index >= lastIndex && lastIndex >= 0) index++;
+      lastIndex = index;
+      resetVisual();
+      mount.classList.add('tongue-one');
+      buttons[index].classList.add('is-visible');
+      state._tongueNextAt = now + 10000;
+      state._tongueOneUntil = now + 2000;
+    }
+    if (state._tongueOneUntil && now >= state._tongueOneUntil) {
+      state._tongueOneUntil = 0;
+      if (!state._tongueAllUntil) resetVisual();
+    }
+  }, 100);
+}
+
+// Subtle walkable furniture seams, with a stronger local highlight near any thief.
+// Uses the existing room geometry; it does not introduce floating platforms.
+function drawFurnitureSeams() {
+  if (!state.level) return;
+  const actors = state.mpPlayers?.length
+    ? state.mpPlayers.filter(p => p.active && !p.hidden)
+    : [state.player].filter(Boolean);
+  ctx.save();
+  for (const surface of state.level.surfaces) {
+    if (surface.type === 'floor' || !Number.isFinite(surface.x) || !Number.isFinite(surface.y)) continue;
+    const inset = Math.min(22, Math.max(7, surface.w * .09));
+    const x = surface.x + inset;
+    const width = Math.max(2, surface.w - 2 * inset);
+    const near = actors.some(p => {
+      const middle = p.x + p.w / 2;
+      const gapX = middle < x ? x - middle : middle > x + width ? middle - (x + width) : 0;
+      return gapX < 95 && Math.abs(p.y + p.h - surface.y) < 110;
+    });
+    const glow = near ? .78 + .12 * Math.sin(state.elapsed * 5.2) : .32;
+    const sheen = ctx.createLinearGradient(x, surface.y, x + width, surface.y);
+    sheen.addColorStop(0, 'rgba(184,221,235,0)');
+    sheen.addColorStop(.14, `rgba(189,225,236,${glow * .7})`);
+    sheen.addColorStop(.5, `rgba(230,248,252,${glow})`);
+    sheen.addColorStop(.86, `rgba(189,225,236,${glow * .7})`);
+    sheen.addColorStop(1, 'rgba(184,221,235,0)');
+    ctx.fillStyle = 'rgba(5, 17, 24, .18)';
+    ctx.fillRect(x, surface.y + 1, width, 2);
+    ctx.fillStyle = sheen;
+    ctx.fillRect(x, surface.y - (near ? 4 : 2), width, near ? 5 : 3);
+    if (near) {
+      ctx.strokeStyle = 'rgba(157, 227, 246, .24)';
+      ctx.shadowColor = 'rgba(116, 221, 250, .68)';
+      ctx.shadowBlur = 11;
+      ctx.beginPath(); ctx.moveTo(x + 8, surface.y - 2); ctx.lineTo(x + width - 8, surface.y - 2); ctx.stroke();
+      ctx.shadowBlur = 0;
+    }
+  }
+  ctx.restore();
+}
+
 function buildMenus() {
   dom.characterGrid.textContent = "";
   CHARACTER_ORDER.forEach((id) => {
@@ -192,9 +321,7 @@ function buildMenus() {
     info.innerHTML = `<small>${character.role}</small><h3>${character.name}</h3><p>${character.ability} · ${character.description}</p>`;
     card.append(info); card.addEventListener("click", () => selectCharacter(id)); dom.characterGrid.append(card);
   });
-  dom.startCast.textContent = "";
-  const cast = document.createElement("img"); cast.className = "start-cast-image";
-  cast.src = "assets/crew-cast.png"; cast.alt = ""; dom.startCast.append(cast);
+  setupTongueCast();
   updateRulesContext();
 }
 
@@ -2086,7 +2213,7 @@ function drawCharacter(entity, interpolation = 1, alpha = 1) {
 }
 
 function render(interpolation = 1) {
-  if (!state.level) return; ctx.clearRect(0, 0, GAME.width, GAME.height); drawBackdrop(); drawVision(); drawRoomCues(); drawHazards();
+  if (!state.level) return; ctx.clearRect(0, 0, GAME.width, GAME.height); drawBackdrop(); drawFurnitureSeams(); drawVision(); drawRoomCues(); drawHazards();
   state.items.forEach(drawItem);
   if (state.selectedId !== "draco") drawExit();
   if (state.decoy) { const fake = { ...state.player, x: state.decoy.x, y: state.decoy.y, prevX: state.decoy.x, prevY: state.decoy.y, face: state.decoy.face }; drawCharacter(fake, interpolation, .38 + Math.sin(state.elapsed * 12) * .1); }

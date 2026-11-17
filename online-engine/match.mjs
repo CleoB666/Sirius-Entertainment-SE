@@ -143,6 +143,7 @@ export function createMatch({levelIndex=0,participants=[],difficulty='normal'}={
       }
       if(landing){p.y=landing.y-p.h;p.vy=0;p.onGround=true;}
     }
+    floorSafety(p);
     p.animDistance+=Math.abs(p.x-p.prevX)+Math.abs(p.y-p.prevY)*.28;
     if(!Number.isFinite(p.x)||!Number.isFinite(p.y)||p.y>GAME.height+80||Math.abs(p.x)>GAME.width*2){
       const [x,y]=p.id==='draco'?level.playerSpawn.guard:level.playerSpawn.thief;
@@ -150,10 +151,33 @@ export function createMatch({levelIndex=0,participants=[],difficulty='normal'}={
       p.vx=0;p.vy=0;p.onGround=false;p.climbing=false;p._navTransit=null;p.navSurface=undefined;
     }
   }
+  function floorSafety(p){
+    if(!p || !p.active || p.hidden || p.climbing)return;
+    const floor=level.surfaces.find(s=>s.type==='floor');
+    if(!floor || !Number.isFinite(p.x) || !Number.isFinite(p.y))return;
+    if(p.y+p.h>floor.y && p.vy>=0 && p.x+p.w>floor.x && p.x<floor.x+floor.w){
+      p.y=floor.y-p.h;p.vy=0;p.onGround=true;p.coyote=.11;p.ledgePull=0;
+      if(!Number.isFinite(p.prevY)||p.prevY>p.y+28)p.prevY=p.y;
+    }
+  }
   function nearHide(p) {return level.hideSpots.find(s=>Math.abs(centerX(p)-(s.x+s.w/2))<s.w/2+42 && Math.abs(centerY(p)-(s.y+s.h/2))<s.h/2+42);}
   function toggleHide(p){
-    if(p.hidden){p.hidden=false;p.hideSpot=null;p.hideTimer=0;p.hideNoise=false;return;}
+    if(p.hidden){
+      p.hidden=false;p.hideSpot=null;p.hideTimer=0;p.hideNoise=false;
+      const home=p.hideReturn;
+      p.hideReturn=null;
+      if(home && Number.isFinite(home.x) && Number.isFinite(home.y)){
+        p.x=clamp(home.x,0,GAME.width-p.w);
+        p.y=Math.min(home.y,level.floorY-p.h);
+      } else p.y=level.floorY-p.h;
+      p.prevX=p.x;p.prevY=p.y;p.vx=0;p.vy=0;
+      p.onGround=false;p.climbing=false;p.jumpBuffer=0;p._lastUp=false;
+      p.damageCooldown=Math.max(p.damageCooldown||0,.3);
+      floorSafety(p);
+      return;
+    }
     const s=nearHide(p);if(!s)return;
+    p.hideReturn={x:p.x,y:p.y};
     p.hidden=true;p.hideSpot=s;p.hideTimer=0;p.hideNoise=false;p.vx=p.vy=0;
     p.x=clamp(s.x+s.w/2-p.w/2,0,GAME.width-p.w);p.y=s.y+s.h-p.h-5;
   }
@@ -244,7 +268,7 @@ export function createMatch({levelIndex=0,participants=[],difficulty='normal'}={
     if(!p.active || p.damageCooldown>0)return;
     p.lives=Math.max(0,p.lives-1);
     if(p.tools>0)p.tools--;else p.points=Math.max(p.protectedPoints,p.points-3);
-    p.hidden=false;p.hideSpot=null;p.hideNoise=false;p.invisible=0;p.boostTimer=0;
+    p.hidden=false;p.hideSpot=null;p.hideReturn=null;p.hideNoise=false;p.invisible=0;p.boostTimer=0;
     const dropped=p.cargo;p.cargo=0;spillCargo(p,dropped);p._navTransit=null;p.navSurface=undefined;p.aiGoal=null;p.aiFrozen=0;
     p.climbing=false;p.onGround=false;p.vx=p.vy=0;p.jumpBuffer=0;p._lastUp=false;
     if(!p.lives){p.active=false;notice(`${p.displayName} is OUT!`);return;}
@@ -297,18 +321,20 @@ export function createMatch({levelIndex=0,participants=[],difficulty='normal'}={
       p.abilityCooldown=Math.max(0,p.abilityCooldown-dt);
       p.invisible=Math.max(0,p.invisible-dt);
       p.boostTimer=Math.max(0,p.boostTimer-dt);
-      if(p.hidden){p.prevX=p.x;p.prevY=p.y;p.hideTimer+=dt;
-        if(p.hideTimer>4.5)p.hideNoise=true;
-        if(p.mpType==='bot' && p.hideTimer>2.2)toggleHide(p);
-        continue;}
       const isBot=p.mpType==='bot';
-      const controls=isBot?botInput(p,dt):state.elapsed-p.lastInputAt>1 ? NO_INPUT:p.input;
+      // Hiding must never swallow the player's next HIDE action.
+      // Process real player commands BEFORE the hidden-state early return.
       if(!isBot){
         const actions=p.pending.splice(0,4);
-        for(const action of actions){if(action==='hide')toggleHide(p);else if(action==='ability')ability(p);else if(action==='use')use(p);else if(action==='stash')stash(p);}
+        for(const action of actions){if(action==='hide')toggleHide(p);else if(action==='ability'&&!p.hidden)ability(p);else if(action==='use'&&!p.hidden)use(p);else if(action==='stash'&&!p.hidden)stash(p);}
       }
-      if(p.hidden)continue;
+      if(p.hidden){p.prevX=p.x;p.prevY=p.y;p.hideTimer+=dt;
+        if(p.hideTimer>4.5)p.hideNoise=true;
+        if(isBot && p.hideTimer>2.2)toggleHide(p);
+        continue;}
+      const controls=isBot?botInput(p,dt):state.elapsed-p.lastInputAt>1 ? NO_INPUT:p.input;
       if(!(isBot && nav.advance(p,dt)))physics(p,controls,dt,isBot?speedFactor:1);
+      floorSafety(p);
       if(isBot && p._navTransit && !Number.isFinite(p.x)){p._navTransit=null;}
       for(const hazard of level.hazards||[])if(hit(p,{x:hazard.x,y:hazard.y-4,w:hazard.w,h:hazard.h+8},5))damage(p);
       if(!p.active)continue;

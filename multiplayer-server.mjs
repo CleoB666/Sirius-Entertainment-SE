@@ -75,6 +75,7 @@ function handle(peer,p){
   const room=peer.room,seat=peer.seat;
   if(p.type==='leave'){removePeer(peer,true);peer.socket.end();return;}
   if(p.type==='character' && room.phase==='waiting'){seat.character=charOf(p.character);status(room);return;}
+  if(p.type==='name' && room.phase==='waiting'){seat.name=nameOf(p.name,seat.name);status(room);return;}
   if(p.type==='input' && room.phase==='playing' && room.match){
     const now=Date.now();if(now-(peer.lastInputAt||0)<22)return;peer.lastInputAt=now;
     const c=p.controls&&typeof p.controls==='object'?p.controls:{};

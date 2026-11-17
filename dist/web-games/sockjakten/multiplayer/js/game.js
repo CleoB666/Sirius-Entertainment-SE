@@ -224,11 +224,137 @@ function makeCharacterPortrait(id) {
   return portrait;
 }
 
-function buildMenus() {
-  dom.startCast.textContent = '';
+// Shared start-menu easter egg. Only runs on the intro screen.
+// Positions use the original 1672 x 941 cast illustration; no artwork is replaced.
+function setupTongueCast() {
+  const mount = dom.startCast;
+  mount.textContent = '';
   const cast = document.createElement('img');
-  cast.className = 'start-cast-image'; cast.src = 'assets/crew-cast.png'; cast.alt = '';
-  dom.startCast.append(cast);
+  cast.className = 'start-cast-image';
+  cast.src = 'assets/crew-cast.png';
+  cast.alt = '';
+  mount.append(cast);
+  // Mouth positions in the original image, left to right plus Draco.
+  const mouths = [
+    {label:'Strappy', x:.237, y:.712},
+    {label:'Clawster', x:.357, y:.812},
+    {label:'Trasselsudd', x:.492, y:.800},
+    {label:'Gramp', x:.676, y:.785},
+    {label:'Lairy', x:.848, y:.768},
+    {label:'Draco', x:.669, y:.266},
+  ];
+  const buttons = mouths.map((spot, index) => {
+    const button = document.createElement('button');
+    button.type = 'button';
+    button.className = 'cast-tongue';
+    button.setAttribute('aria-label', spot.label + ' is sticking out their tongue! Click for a group reaction.');
+    button.title = 'Catch the cheeky tongue!';
+    const tongue = document.createElement('span');
+    tongue.className = 'cast-tongue-shape';
+    tongue.setAttribute('aria-hidden', 'true');
+    button.append(tongue);
+    button.addEventListener('click', (event) => {
+      event.stopPropagation();
+      if (!button.classList.contains('is-visible') || !mount.classList.contains('tongue-one')) return;
+      const now = performance.now();
+      state._tongueAllUntil = now + 2000;
+      state._tongueNextAt = now + 12000;
+      mount.classList.remove('tongue-one');
+      mount.classList.add('tongue-all');
+      buttons.forEach(b => b.classList.add('is-visible'));
+    });
+    mount.append(button);
+    return button;
+  });
+  const layout = () => {
+    const w = mount.clientWidth, h = mount.clientHeight;
+    if (!w || !h) return;
+    const scale = Math.min(w / 1672, h / 941);
+    const left = w - 1672 * scale;
+    const top = h - 941 * scale;
+    mouths.forEach((spot, i) => {
+      buttons[i].style.left = Math.round(left + 1672 * scale * spot.x) + 'px';
+      buttons[i].style.top = Math.round(top + 941 * scale * spot.y) + 'px';
+    });
+  };
+  if (typeof ResizeObserver !== 'undefined') new ResizeObserver(layout).observe(mount);
+  else window.addEventListener('resize', layout);
+  cast.addEventListener('load', layout);
+  let lastIndex = -1;
+  let menuWasVisible = false;
+  const resetVisual = () => {
+    mount.classList.remove('tongue-one', 'tongue-all');
+    buttons.forEach(button => button.classList.remove('is-visible'));
+  };
+  setInterval(() => {
+    const visible = state.screen === 'start' && !document.hidden && dom.rules.classList.contains('hidden');
+    const now = performance.now();
+    if (!visible) { if (menuWasVisible) resetVisual(); menuWasVisible = false; return; }
+    if (!menuWasVisible) { menuWasVisible = true; state._tongueNextAt = now + 10000; state._tongueAllUntil = 0; layout(); }
+    if (state._tongueAllUntil > 0) {
+      if (now < state._tongueAllUntil) return;
+      state._tongueAllUntil = 0;
+      resetVisual();
+    }
+    if (now >= state._tongueNextAt) {
+      let index = Math.floor(Math.random() * (lastIndex < 0 ? mouths.length : mouths.length - 1));
+      if (index >= lastIndex && lastIndex >= 0) index++;
+      lastIndex = index;
+      resetVisual();
+      mount.classList.add('tongue-one');
+      buttons[index].classList.add('is-visible');
+      state._tongueNextAt = now + 10000;
+      state._tongueOneUntil = now + 2000;
+    }
+    if (state._tongueOneUntil && now >= state._tongueOneUntil) {
+      state._tongueOneUntil = 0;
+      if (!state._tongueAllUntil) resetVisual();
+    }
+  }, 100);
+}
+
+// Subtle walkable furniture seams, with a stronger local highlight near any thief.
+// Uses the existing room geometry; it does not introduce floating platforms.
+function drawFurnitureSeams() {
+  if (!state.level) return;
+  const actors = state.mpPlayers?.length
+    ? state.mpPlayers.filter(p => p.active && !p.hidden)
+    : [state.player].filter(Boolean);
+  ctx.save();
+  for (const surface of state.level.surfaces) {
+    if (surface.type === 'floor' || !Number.isFinite(surface.x) || !Number.isFinite(surface.y)) continue;
+    const inset = Math.min(22, Math.max(7, surface.w * .09));
+    const x = surface.x + inset;
+    const width = Math.max(2, surface.w - 2 * inset);
+    const near = actors.some(p => {
+      const middle = p.x + p.w / 2;
+      const gapX = middle < x ? x - middle : middle > x + width ? middle - (x + width) : 0;
+      return gapX < 95 && Math.abs(p.y + p.h - surface.y) < 110;
+    });
+    const glow = near ? .78 + .12 * Math.sin(state.elapsed * 5.2) : .32;
+    const sheen = ctx.createLinearGradient(x, surface.y, x + width, surface.y);
+    sheen.addColorStop(0, 'rgba(184,221,235,0)');
+    sheen.addColorStop(.14, `rgba(189,225,236,${glow * .7})`);
+    sheen.addColorStop(.5, `rgba(230,248,252,${glow})`);
+    sheen.addColorStop(.86, `rgba(189,225,236,${glow * .7})`);
+    sheen.addColorStop(1, 'rgba(184,221,235,0)');
+    ctx.fillStyle = 'rgba(5, 17, 24, .18)';
+    ctx.fillRect(x, surface.y + 1, width, 2);
+    ctx.fillStyle = sheen;
+    ctx.fillRect(x, surface.y - (near ? 4 : 2), width, near ? 5 : 3);
+    if (near) {
+      ctx.strokeStyle = 'rgba(157, 227, 246, .24)';
+      ctx.shadowColor = 'rgba(116, 221, 250, .68)';
+      ctx.shadowBlur = 11;
+      ctx.beginPath(); ctx.moveTo(x + 8, surface.y - 2); ctx.lineTo(x + width - 8, surface.y - 2); ctx.stroke();
+      ctx.shadowBlur = 0;
+    }
+  }
+  ctx.restore();
+}
+
+function buildMenus() {
+  setupTongueCast();
   mpRenderLobby();
   updateRulesContext();
 }
@@ -590,6 +716,7 @@ if (horizontal && oldBottom <= surface.y + 5 && nextBottom >= surface.y && (!lan
     entity.ledgePull = Math.max(entity.ledgePull, .18);
   }
 
+  mpFloorSafety(entity);
   entity.animDistance += Math.abs(entity.x - entity.prevX) + Math.abs(entity.y - entity.prevY) * .28;
   if (entity.y > GAME.height + 80) {
   if (isPlayer && state.selectedId === "draco") {
@@ -1995,7 +2122,7 @@ function drawCharacter(entity, interpolation = 1, alpha = 1) {
 }
 
 function render(interpolation = 1) {
-  if (!state.level) return; ctx.setTransform(1,0,0,1,0,0); ctx.globalAlpha=1;ctx.filter="none";ctx.clearRect(0, 0, GAME.width, GAME.height); drawBackdrop(); drawVision(); drawRoomCues(); drawHazards();
+  if (!state.level) return; ctx.setTransform(1,0,0,1,0,0); ctx.globalAlpha=1;ctx.filter="none";ctx.clearRect(0, 0, GAME.width, GAME.height); drawBackdrop(); drawFurnitureSeams(); drawVision(); drawRoomCues(); drawHazards();
   state.items.forEach(item => {
     drawItem(item);
     if(item.collected)return;
@@ -2303,58 +2430,86 @@ window.addEventListener('keyup',e=>keys.delete(e.code));
 }
 
 
-const mpLobby={ humans:1,bots:3,difficulty:'normal',choices:['clawster','lairy','gramp','strappy'] };
+const mpLobby={ humans:1,bots:3,difficulty:'normal',choices:['clawster','lairy','gramp','strappy'],names:['P1','P2','P3','P4'] };
+function mpEsc(value){return String(value??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));}
 function mpLobbySlots(){
-  if (online.role === 'host') {
-    const guests = online.roster.filter(p=>p.slot>0 && p.connected).sort((a,b)=>a.slot-b.slot);
-    const selections = [{type:'human',character:mpLobby.choices[0],name:'P1'}];
-    const humans = guests.map(p=>({type:'remote',character:p.character,remoteSlot:p.slot,name:p.name}));
-    const used = new Set([...selections,...humans].map(p=>p.character));
-    const spare=THIEF_IDS.filter(id=>!used.has(id));
-    return [...selections,...humans,...Array.from({length:mpLobby.bots},(_,i)=>({type:'bot',character:spare[i%Math.max(1,spare.length)]||THIEF_IDS[i%THIEF_IDS.length]}))].slice(0,4);
+  if(online.role==='host'){
+    const guests=online.roster.filter(p=>p.slot!==online.slot && p.connected).sort((a,b)=>a.slot-b.slot);
+    const self=online.roster.find(p=>p.slot===online.slot);
+    const chosen=mpLobby.choices[0];
+    const players=[{type:'human',character:chosen,name:self?.name || mpLobby.names[0],remoteSlot:online.slot},
+      ...guests.map(p=>({type:'remote',character:p.character,remoteSlot:p.slot,name:p.name}))];
+    const used=new Set(players.map(p=>p.character));
+    const unused=THIEF_IDS.filter(id=>!used.has(id));
+    const bots=Array.from({length:mpLobby.bots},(_,i)=>({type:'bot',character:unused[i%unused.length]||THIEF_IDS[i%THIEF_IDS.length],name:'BOT '+(i+1)}));
+    return [...players,...bots].slice(0,4);
   }
   const count=mpLobby.humans+mpLobby.bots;
-  const choices=mpLobby.choices.slice(0,mpLobby.humans);
-  const available=THIEF_IDS.filter(id=>!choices.includes(id));
-  return Array.from({length:count},(_,i)=>({type:i<mpLobby.humans?'human':'bot',character:i<mpLobby.humans?choices[i]:available[i-mpLobby.humans]}));
+  const used=new Set(mpLobby.choices.slice(0,mpLobby.humans));
+  const unused=THIEF_IDS.filter(id=>!used.has(id));
+  return Array.from({length:count},(_,i)=>i<mpLobby.humans
+    ? {type:'human',character:mpLobby.choices[i],name:mpLobby.names[i]||'P'+(i+1)}
+    : {type:'bot',character:unused[(i-mpLobby.humans)%Math.max(1,unused.length)]||THIEF_IDS[i%THIEF_IDS.length],name:'BOT '+(i-mpLobby.humans+1)});
 }
 function mpRenderLobby(message=''){
-  if(online.connected && online.role==='guest'){
-    dom.characterGrid.className='mp-lobby';
-    dom.characterGrid.innerHTML='<div class="mp-warning">You are connected to a dedicated server room. Choose your character above, then wait for the room leader to start. The match will appear here automatically.</div>';
-    return;
-  }
   const heading=$('#selectScreen .panel-heading');
-  heading.innerHTML='<p class="overline">REAL-TIME MULTIPLAYER</p><h2>BUILD YOUR HEIST CREW</h2><p>Run, climb, hide, steal and compete for shared loot. Draco chases everyone.</p>';
-  const isHost=online.role==='host';
-  if(isHost)mpLobby.humans=1+online.roster.filter(p=>p.slot>0 && p.connected).length;
+  heading.innerHTML='<p class="overline">REAL-TIME MULTIPLAYER</p><h2>BUILD YOUR HEIST CREW</h2><p>Choose your thief and nickname. Race friends and bots while Draco guards the room.</p>';
+  const guest=online.connected&&online.role==='guest';
+  const host=online.connected&&online.role==='host';
+  if(host)mpLobby.humans=online.roster.filter(p=>p.connected).length;
+  if(!guest)mpLobby.bots=Math.min(mpLobby.bots,4-mpLobby.humans);
   const maxBots=4-mpLobby.humans;
-  mpLobby.bots=Math.min(mpLobby.bots,maxBots);
-  const slots=mpLobbySlots();
+  const seats=guest
+    ? online.roster.filter(p=>p.connected).sort((a,b)=>a.slot-b.slot).map(p=>({
+        type:p.slot===online.slot?'human':'remote',character:p.character,name:p.name,remoteSlot:p.slot
+      }))
+    : mpLobbySlots();
+  const choices=THIEF_IDS;
+  const card=(seat,i)=>{
+    const own=guest ? seat.remoteSlot===online.slot : seat.type==='human';
+    const label=seat.type==='bot'?'BOT '+(i+1):'PLAYER '+(i+1)+(seat.type==='remote'?' · ONLINE':'');
+    const char=CHARACTERS[seat.character]||CHARACTERS.clawster;
+    const name=mpEsc(seat.name||label);
+    return '<article class="mp-slot '+(own?'mp-slot-own':'mp-slot-view')+'">'+
+      '<span class="mp-slot-header">'+label+'</span><img src="'+char.portraitAsset+'" alt="'+mpEsc(char.name)+' portrait">'+
+      (own ? '<label>YOUR NICKNAME<input maxlength="18" data-mp-name="'+i+'" value="'+name+'" autocomplete="off" spellcheck="false"></label>'+ 
+        '<label>YOUR CHARACTER<select data-mp-player="'+i+'">'+choices.map(id=>'<option value="'+id+'" '+(id===seat.character?'selected':'')+'>'+CHARACTERS[id].name+'</option>').join('')+'</select></label>'
+        : '<strong>'+name+'</strong><span>'+char.name+'</span>')+'</article>';
+  };
   dom.characterGrid.className='mp-lobby';
-  dom.characterGrid.innerHTML=
-    '<div class="mp-lobby-settings"><label>Humans<select id="mpHumans" '+(isHost?'disabled':'')+'>'+[1,2,3,4].map(n=>'<option '+(n===mpLobby.humans?'selected':'')+'>'+n+'</option>').join('')+'</select></label>'+
-    '<label>Bots<select id="mpBots">'+Array.from({length:maxBots+1},(_,n)=>'<option '+(n===mpLobby.bots?'selected':'')+'>'+n+'</option>').join('')+'</select></label>'+
-    '<label>Bot difficulty<select id="mpDifficulty">'+['easy','normal','hard'].map(d=>'<option value="'+d+'" '+(d===mpLobby.difficulty?'selected':'')+'>'+d.toUpperCase()+'</option>').join('')+'</select></label></div>'+
-    '<div class="mp-slots">'+slots.map((slot,i)=>{
-      const id=slot.character;
-      const label=slot.type==='bot'?'BOT '+(i+1):slot.type==='remote'?slot.name+' · ONLINE':'PLAYER '+(i+1);
-      const editable=slot.type==='human';
-      return '<article class="mp-slot"><img src="'+CHARACTERS[id].portraitAsset+'" alt=""><strong>'+label+'</strong>'+
-        (editable?'<select data-mp-player="'+i+'">'+THIEF_IDS.map(cid=>'<option value="'+cid+'" '+(cid===id?'selected':'')+'>'+CHARACTERS[cid].name+'</option>').join('')+'</select>':'<span>'+CHARACTERS[id].name+'</span>')+'</article>';
-    }).join('')+'</div>'+
-    '<p class="mp-warning" id="mpLobbyMessage">'+message+'</p><p>Carry socks to the moving Relay Drop. Trigger a shared golden jackpot with 2 Tools, and secure points before Draco catches you. Three lives each. '+(isHost?'Your guests each use their own keyboard.':'Choose 2–4 local humans or bots; one keyboard works for all four.')+'</p>'+
-    '<button id="mpProceed" class="btn btn-primary" type="button">CHOOSE ROOM</button>';
-  $('#mpHumans').onchange=e=>{mpLobby.humans=+e.target.value;mpLobby.bots=Math.min(mpLobby.bots,4-mpLobby.humans);mpRenderLobby();};
-  $('#mpBots').onchange=e=>{mpLobby.bots=+e.target.value;mpRenderLobby();};
-  $('#mpDifficulty').onchange=e=>{mpLobby.difficulty=e.target.value;mpRenderLobby();};
-  dom.characterGrid.querySelectorAll('[data-mp-player]').forEach(select=>select.onchange=e=>{mpLobby.choices[+e.target.dataset.mpPlayer]=e.target.value;if(online.connected&&online.role==='host')online.send({type:'character',character:mpLobby.choices[0]});mpRenderLobby();});
-  $('#mpProceed').onclick=()=>{
-    const chars=mpLobby.choices.slice(0,mpLobby.humans);
+  const settings=guest
+    ? '<div class="mp-lobby-readonly">YOUR ONLINE ROOM · Only change your own nickname and character. The room leader chooses the number of bots and the room.</div>'
+    : '<div class="mp-lobby-settings"><label>Human players<select id="mpHumans" '+(host?'disabled':'')+'>'+[1,2,3,4].map(n=>'<option '+(n===mpLobby.humans?'selected':'')+'>'+n+'</option>').join('')+'</select></label>'+ 
+      '<label>Bot players<select id="mpBots">'+Array.from({length:maxBots+1},(_,n)=>'<option '+(n===mpLobby.bots?'selected':'')+'>'+n+'</option>').join('')+'</select></label>'+ 
+      '<label>Bot difficulty<select id="mpDifficulty">'+['easy','normal','hard'].map(d=>'<option '+(d===mpLobby.difficulty?'selected':'')+'>'+d.toUpperCase()+'</option>').join('')+'</select></label></div>';
+  dom.characterGrid.innerHTML=settings+
+    '<div class="mp-slots">'+seats.map(card).join('')+'</div>'+ 
+    '<p class="mp-warning" id="mpLobbyMessage">'+mpEsc(message)+'</p>'+ 
+    '<p class="mp-lobby-tip">'+(guest?'Waiting for the room leader. You have the same character selection as Player 1.':'Each human chooses a nickname and character. Bots fill the remaining slots. Everyone keeps their own controls.')+'</p>'+ 
+    (guest ? '' : '<button id="mpProceed" class="btn btn-primary" type="button">CHOOSE ROOM</button>');
+  if(!guest){
+    $('#mpHumans').onchange=e=>{mpLobby.humans=+e.target.value;mpLobby.bots=Math.min(mpLobby.bots,4-mpLobby.humans);mpRenderLobby();};
+    $('#mpBots').onchange=e=>{mpLobby.bots=+e.target.value;mpRenderLobby();};
+    $('#mpDifficulty').onchange=e=>{mpLobby.difficulty=e.target.value;mpRenderLobby();};
+  }
+  dom.characterGrid.querySelectorAll('[data-mp-name]').forEach(input=>input.addEventListener('change',e=>{
+    const index=+e.target.dataset.mpName;
+    const normalized=e.target.value.trim().slice(0,18)||'P'+(index+1);
+    if(guest){$('#mpOnlineName').value=normalized;online.send({type:'name',name:normalized});}
+    else {mpLobby.names[index]=normalized;if(host){$('#mpOnlineName').value=normalized;online.send({type:'name',name:normalized});}}
+    e.target.value=normalized;
+  }));
+  dom.characterGrid.querySelectorAll('[data-mp-player]').forEach(select=>select.onchange=e=>{
+    const index=+e.target.dataset.mpPlayer;
+    if(guest){$('#mpOnlineCharacter').value=e.target.value;online.send({type:'character',character:e.target.value});}
+    else {mpLobby.choices[index]=e.target.value;if(host)online.send({type:'character',character:e.target.value});}
+    mpRenderLobby();
+  });
+  if(!guest)$('#mpProceed').onclick=()=>{
     if(mpLobbySlots().length<2)return mpRenderLobby('Add another human or bot.');
-    if(!isHost&&new Set(chars).size!==chars.length)return mpRenderLobby('Every human needs a unique character.');
-    if(isHost&&!online.connected)return mpRenderLobby('Connect to the online server before choosing a room.');
-    state.selectedId=mpLobbySlots()[0].character;
+    if(!host && new Set(mpLobby.choices.slice(0,mpLobby.humans)).size!==mpLobby.humans)return mpRenderLobby('Each human must choose a different thief.');
+    const slots=mpLobbySlots();
+    state.selectedId=slots[0].character;
     $('#chosenRole').textContent='HEIST CIRCUIT';
     $('#chosenSummary').textContent=mpLobby.humans+' human(s) and '+mpLobby.bots+' bot(s) · '+mpLobby.difficulty+' bots';
     buildLevelCards();showScreen('levels');
@@ -2782,18 +2937,50 @@ function mpDrawVaults(){
   }
 }
 
+// Rescue a character only if it has sunk below the actual continuous room floor.
+// All four original room layouts use a full-width solid floor surface.
+function mpFloorSafety(p) {
+  if(!p || !p.active || p.hidden || p.climbing || !state.level)return;
+  const floor=state.level.surfaces.find(s=>s.type==='floor');
+  if(!floor || !Number.isFinite(p.x) || !Number.isFinite(p.y))return;
+  const feet=p.y+p.h;
+  if(feet>floor.y && p.vy>=0 && p.x+p.w>floor.x && p.x<floor.x+floor.w){
+    p.y=floor.y-p.h; p.vy=0; p.onGround=true; p.coyote=.1;
+    p.ledgePull=0;
+    if(!Number.isFinite(p.prevY)||p.prevY>p.y+28)p.prevY=p.y;
+  }
+}
+
 function mpNearbyHide(p){
   const area={x:p.x-50,y:p.y-35,w:p.w+100,h:p.h+70};
   return state.level.hideSpots.filter(spot=>overlaps(area,spot)).sort((a,b)=>Math.abs(a.x+a.w/2-p.x)-Math.abs(b.x+b.w/2-p.x))[0]||null;
 }
 function mpToggleHide(p){
-  if(!state.running||state.paused||!p||!p.active)return;
-  if(p.hidden){p.hidden=false;p.hideSpot=null;p.hideTimer=0;p.hideNoise=false;p.y=state.level.floorY-p.h-3;p.prevY=p.y;if(p===state.player){state.hidden=false;state.hiddenSpot=null;}return;}
+  if(!state.running || state.paused || !p || !p.active)return;
+  if(p.hidden){
+    p.hidden=false; p.hideSpot=null; p.hideTimer=0; p.hideNoise=false;
+    const back=p.mpHideReturn;
+    p.mpHideReturn=null;
+    if(back && Number.isFinite(back.x) && Number.isFinite(back.y)) {
+      p.x=clamp(back.x,0,GAME.width-p.w);
+      p.y=Math.min(back.y, state.level.floorY-p.h);
+    } else {
+      p.y=state.level.floorY-p.h;
+    }
+    p.prevX=p.x; p.prevY=p.y; p.vx=0; p.vy=0;
+    p.climbing=false; p.jumpBuffer=0; p.coyote=0;
+    p.onGround=false; p.damageCooldown=Math.max(p.damageCooldown||0,.3);
+    if(p===state.player){state.hidden=false;state.hiddenSpot=null;state.hideTimer=0;}
+    mpFloorSafety(p);
+    return;
+  }
   const spot=mpNearbyHide(p),draco=state.enemies[0];
   if(!spot)return showHint(p.displayName+': move near a hiding place.',1.4);
   if(draco?.mode==='chase'&&canSeePlayer(draco,p)&&distance(draco,p)<175)return showHint('Break Draco line of sight first.',1.5);
+  p.mpHideReturn={x:p.x,y:p.y};
   p.hidden=true;p.hideSpot=spot;p.hideTimer=0;p.hideNoise=false;p.vx=0;p.vy=0;
-  p.x=spot.x+spot.w/2-p.w/2;p.y=spot.y+spot.h-p.h-5;p.prevX=p.x;p.prevY=p.y;
+  p.x=clamp(spot.x+spot.w/2-p.w/2,0,GAME.width-p.w);
+  p.y=spot.y+spot.h-p.h-5;p.prevX=p.x;p.prevY=p.y;
   if(p===state.player){state.hidden=true;state.hiddenSpot=spot;state.hideTimer=0;}
 }
 function mpStash(p) {
@@ -2849,7 +3036,7 @@ function mpDamage(p,reason){
   const wasProtected=(p.protectedPoints||0);
   if(p.tools>0)p.tools--;
   else p.points=Math.max(wasProtected,p.points-3);
-  p.hidden=false;p.hideSpot=null;p.hideTimer=0;p.hideNoise=false;
+  p.hidden=false;p.hideSpot=null;p.hideTimer=0;p.hideNoise=false;p.mpHideReturn=null;
   p.climbing=false;p.onGround=false;p.stunned=0;p.jumpBuffer=0;p.coyote=0;p.ledgePull=0;
   p._navTransit=null;p.navSurface=undefined;
   p.aiTarget=-1;p.aiDecision=0;p.aiStuck=0;p.aiScoutGoal=null;p.aiLastX=p.x;
@@ -3014,6 +3201,7 @@ function mpUpdatePlayers(dt){
     // Each entity uses the original movement, jumps, ladders and collision surfaces.
     if(!mpBotDriving || !mpNavigator.advance(p,dt))
       updateEntity(p,dt,controls,mpBotDriving?(mpLobby.difficulty==='easy'?.75:mpLobby.difficulty==='normal'?.9:1):1,p===state.player);
+    mpFloorSafety(p);
     if(mpBotDriving)mpBotWatchdog(p,dt,controls);
     if(!state.running)return;
     if(p.y>GAME.height+40){mpDamage(p,'Fell');continue;}
@@ -3162,6 +3350,7 @@ function mpOnlineUI() {
   if(url&&online.server && document.activeElement!==url)url.value=online.server;
   if(join&&online.room && document.activeElement!==join)join.value=online.room;
   const busy=online.role==='host'||online.role==='guest';
+  box.classList.toggle('mp-room-connected',online.connected);
   $('#mpOnlineHost').disabled=busy;
   $('#mpOnlineJoin').disabled=busy;
   $('#mpOnlineLeave').hidden=!busy;
