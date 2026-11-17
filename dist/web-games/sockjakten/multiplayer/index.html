@@ -1,0 +1,431 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta
+  name="viewport"
+  content="width=device-width, initial-scale=1, viewport-fit=cover"
+/>
+    <meta name="theme-color" content="#07101d" />
+    <meta
+      name="description"
+      content="The Sock Heist – a stealth adventure from Sirius Entertainment featuring The Tiny Heist Crew."
+    />
+    <title>The Sock Heist | Heist Circuit Multiplayer</title>
+    <link rel="stylesheet" href="styles.css" />
+    
+  </head>
+  <body>
+    <main id="app">
+      <section id="gameShell" class="game-shell" aria-label="The Sock Heist">
+        <canvas id="gameCanvas" width="1280" height="720" aria-label="Game area"></canvas>
+<div class="vignette" aria-hidden="true"></div>
+<div class="rotate-notice" role="status">
+  <span aria-hidden="true">↻</span>
+  <strong>ROTATE YOUR DEVICE</strong>
+  <p>The rooms are designed for landscape play. Turn your phone or tablet sideways to continue.</p>
+</div>
+
+        <header id="hud" class="hud hidden">
+          <div class="hud-cluster">
+            <span id="hudLevel" class="hud-kicker">LEVEL 1</span>
+            <strong id="hudPlace">Bedroom</strong>
+          </div>
+          <div class="hud-center">
+            <div class="objective-line">
+              <span id="hudRole">SOCK THIEF</span>
+              <span id="mpConnectionState" hidden style="font-size:10px;font-weight:800;letter-spacing:.06em">● SERVER LIVE</span>
+              <strong id="hudObjective">Items 0/5</strong>
+            </div>
+            <div class="progress-track"><span id="objectiveProgress"></span></div>
+          </div>
+          <div class="hud-cluster hud-right">
+            <span id="hudTime" class="timer">01:30</span>
+            <span id="hudHearts" class="hearts" aria-label="Lives">◆ ◆ ◆</span>
+            <button id="pauseBtn" class="icon-btn" type="button" aria-label="Pause">Ⅱ</button>
+            <button id="rulesHudBtn" class="icon-btn wide" type="button">Rules</button>
+          </div>
+          <div class="ability-hud">
+            <span id="abilityKey">E</span>
+            <div>
+              <strong id="abilityName">Special ability</strong>
+              <small id="abilityState">READY</small>
+            </div>
+            <i id="abilityFill"></i>
+          </div>
+          <div id="stealthHud" class="stealth-hud safe">
+            <span id="stealthIcon">◉</span>
+            <div><strong id="stealthState">CLEAR</strong><small id="stealthTip">Draco is roaming</small></div>
+            <i><b id="stealthFill"></b></i>
+          </div>
+        </header>
+
+        <div id="gameHint" class="game-hint hidden"></div>
+
+        <section id="loadingScreen" class="screen active">
+          <img class="loading-logo" src="assets/sirius-entertainment.png" alt="Sirius Entertainment" />
+          <p>Opening the sock stash…</p>
+          <div class="loading-track"><span id="loadingFill"></span></div>
+        </section>
+
+        <section id="startScreen" class="screen start-screen">
+          <button id="introMusicBtn" class="intro-music-btn" type="button" aria-label="Mute intro music" aria-pressed="false">♫</button>
+          <div class="studio-mark">
+            <img src="assets/sirius-entertainment.png" alt="" />
+            <div><small>SIRIUS ENTERTAINMENT PRESENTS</small><strong>THE TINY HEIST CREW</strong></div>
+          </div>
+          <div class="start-copy">
+            <p class="overline">When the house falls asleep, the hunt begins</p>
+            <h1>THE SOCK<span>HEIST</span></h1>
+            <p class="lead">
+              Grab socks, build your bag, then race to the moving Relay Drop before Draco catches you.
+              Launch golden jackpots, outplay your rivals and make every second count.
+            </p>
+            
+
+<div class="start-actions"><button id="startBtn" class="btn btn-primary" type="button">PLAY MULTIPLAYER</button><button id="rulesBtn" class="btn btn-ghost" type="button">HOW TO PLAY</button></div>
+
+            <p class="sound-note">♫ Featuring the original theme song</p>
+          </div>
+          <div id="startCast" class="start-cast" aria-hidden="true"></div>
+          <footer class="start-footer">
+            <span>4 PLAYERS · ONE KEYBOARD</span><span>UP = JUMP / CLIMB</span><span>DELIVER SOCK BAGS · OPEN JACKPOTS</span><span>SWAP LOOT FOR BONUS POINTS</span>
+          </footer>
+        </section>
+
+        <section id="selectScreen" class="screen panel-screen">
+          <button class="back-btn" data-back="start" type="button">← Back</button>
+          <div class="panel-heading">
+            <p class="overline">Who will join the heist tonight?</p>
+            <h2>CHOOSE YOUR CHARACTER</h2>
+            <p>Choose human players and bots. Draco guards the house.</p>
+          </div>
+          <div id="mpOnlineBox" class="mp-online-box">
+            <div class="mp-online-heading"><strong>PLAY ONLINE WITH FRIENDS</strong><span>Room code · 2–4 thieves · shared live match</span></div>
+            <div class="mp-online-fields">
+              <label>Online server URL<input id="mpOnlineServer" type="url" spellcheck="false" placeholder="wss://your-online-server.onrender.com/ws" autocomplete="off"></label>
+              <label>Your name<input id="mpOnlineName" type="text" maxlength="18" placeholder="Your nickname" autocomplete="off"></label>
+              <label>Friend's room code<input id="mpOnlineRoom" type="text" maxlength="8" placeholder="ABCDEFG" autocomplete="off" autocapitalize="characters"></label>
+            </div>
+            <div class="mp-online-buttons">
+              <button id="mpOnlineHost" class="btn btn-primary" type="button">CREATE ONLINE ROOM</button>
+              <button id="mpOnlineJoin" class="btn btn-ghost" type="button">JOIN ROOM</button>
+              <button id="mpOnlineLeave" class="btn btn-ghost" type="button" hidden>LEAVE ONLINE ROOM</button>
+            </div>
+            <div id="mpOnlineInvite" hidden><strong>Invite your friends with room code <span id="mpOnlineCode"></span></strong><button id="mpOnlineCopy" class="btn btn-ghost" type="button">COPY INVITE LINK</button></div>
+            <div id="mpOnlineGuestOptions" hidden>
+              <label>Your character<select id="mpOnlineCharacter"><option value="clawster">Clawster</option><option value="lairy">Lairy</option><option value="gramp">Gramp</option><option value="strappy">Strappy</option><option value="trasselsudd">Trasselsudd</option></select></label>
+              <p id="mpOnlineGuestStatus">Waiting for host…</p>
+            </div>
+            <p id="mpOnlineStatus" role="status" aria-live="polite">Local play works without a server.</p>
+            <p id="mpOnlineRoster" class="mp-online-roster" aria-live="polite"></p>
+            <small>The dedicated server runs the match even if the room leader disconnects. Everyone plays with their own P1 controls. Local play remains available below.</small>
+          </div>
+          <div id="characterGrid" class="character-grid"></div>
+        </section>
+
+        <section id="levelScreen" class="screen panel-screen">
+          <button class="back-btn" data-back="select" type="button">← Change character</button>
+          <div class="panel-heading compact">
+            <p id="chosenRole" class="overline">SOCK THIEF</p>
+            <h2>CHOOSE A ROOM</h2>
+            <p id="chosenSummary"></p>
+          </div>
+          <div id="levelGrid" class="level-grid"></div>
+        </section>
+
+        <section id="briefingScreen" class="screen briefing-screen">
+          <div class="briefing-card">
+            <span id="briefingNumber" class="chapter">LEVEL 1 OF 4</span>
+            <p id="briefingEyebrow" class="overline">BEDROOM</p>
+            <h2 id="briefingTitle">The First Sock</h2>
+            <p id="briefingStory"></p>
+            <div class="mission-grid">
+              <div><small>YOUR MISSION</small><strong id="briefingMission"></strong></div>
+              <div><small>YOUR ABILITY</small><strong id="briefingAbility"></strong></div>
+            </div>
+            <div class="controls-strip">
+              <span><kbd>A</kbd><kbd>D</kbd> Move</span>
+              <span><kbd>S</kbd> Climb down</span>
+              <span><kbd>W</kbd> Jump / climb</span>
+              <span id="briefingHideControl"><kbd>Q</kbd> Hide</span>
+              <span><kbd>E</kbd> Skill</span><span><kbd>Z</kbd> USE: Relay / Jackpot</span>
+            </div>
+            <div class="start-actions">
+              <button id="playLevelBtn" class="btn btn-primary" type="button">START HEIST</button>
+              <button id="briefingRulesBtn" class="btn btn-ghost" type="button">Read the rules</button>
+            </div>
+          </div>
+        </section>
+
+        <section id="pauseScreen" class="screen overlay-screen">
+          <div class="dialog-card small">
+            <p class="overline">PAUSED</p>
+            <h2>TAKE A BREATH. THE SOCK CAN WAIT.</h2>
+            <button id="resumeBtn" class="btn btn-primary" type="button">Continue</button>
+            <button id="restartBtn" class="btn btn-ghost" type="button">Restart level</button>
+            <button id="quitBtn" class="text-btn" type="button">Back to levels</button>
+          </div>
+        </section>
+
+        <section id="resultScreen" class="screen overlay-screen">
+          <div class="dialog-card">
+            <p id="resultEyebrow" class="overline">LEVEL COMPLETE</p>
+            <h2 id="resultTitle">Nicely done!</h2>
+            <p id="resultText"></p>
+            <div id="resultStats" class="result-stats"></div>
+            <div class="start-actions">
+              <button id="resultPrimaryBtn" class="btn btn-primary" type="button">Next level</button>
+              <button id="resultSecondaryBtn" class="btn btn-ghost" type="button">Play again</button>
+            </div>
+            <button id="resultMenuBtn" class="text-btn" type="button">Back to levels</button>
+          </div>
+        </section>
+
+        <section id="rulesModal" class="rules-modal hidden" role="dialog" aria-modal="true" aria-labelledby="rulesTitle">
+  <div class="rules-card">
+    <button id="closeRulesBtn" class="close-btn" type="button" aria-label="Close rules">×</button>
+
+    <p class="overline">HOW IT WORKS</p>
+    <h2 id="rulesTitle">GAME RULES</h2>
+
+    <div id="rulesContext" class="rules-context" aria-live="polite">
+      <div>
+        <small>PLAYABLE CHARACTERS</small>
+        <strong id="rulesCharacter">The Tiny Heist Crew or Draco</strong>
+      </div>
+
+      <div>
+        <small>AVAILABLE ROOMS</small>
+        <strong id="rulesLevel">Bedroom · Laundry Room · Living Room · Kitchen</strong>
+      </div>
+
+      <div class="rules-objective">
+        <small>THE TWO WAYS TO PLAY</small>
+        <strong id="rulesObjective">
+          Steal every item and escape as the Crew, or protect the socks and catch every thief as Draco.
+        </strong>
+      </div>
+
+      <p id="rulesLevelTip">
+        Each room is a physical route through its furniture, fabric, handles and hiding places.
+        Later levels give both sides faster reactions and more difficult objectives.
+      </p>
+    </div>
+
+    <div class="rules-columns">
+      <article id="thiefRulesArticle">
+        <span class="role-badge thief">SOCK THIEF</span>
+        <h3>Steal and escape</h3>
+
+        <ol>
+          <li>Collect every orange loot item in the room. Socks, keys, buttons and other objects all count toward the objective.</li>
+          <li>The room itself is the route. Move across the floor and jump onto real furniture when its edge softly lights up.</li>
+          <li>Jump toward an edge to pull yourself up. Nearby fabric, handles and pipes glow when they can be climbed with W/S.</li>
+          <li>Watch the warning meter: Draco roams unpredictably until he sees or hears you.</li>
+          <li>A violet glow reveals a nearby hiding place. Break Draco's line of sight, move close and press Q, F or the HIDE touch button.</li>
+          <li>You have three lives. Touching Draco or a dangerous heat or steam zone costs one life and returns you to the room entrance.</li>
+          <li>Collect everything before time runs out, then reach the orange exit.</li>
+        </ol>
+      </article>
+
+      <article id="guardRulesArticle">
+        <span class="role-badge guard">DRACO</span>
+        <h3>Guard the house</h3>
+
+        <ol>
+          <li>Blue shield markers are socks to protect. Draco cannot collect them; they show where the Crew is heading.</li>
+          <li>Catch every thief before all protected socks disappear. Draco has no time limit.</li>
+          <li>Move, jump and climb through the same room routes as the Crew.</li>
+          <li>The thieves run, jump, climb, use their own abilities and hide when you get close.</li>
+          <li>Touch a visible thief to catch them. A nearby hiding place glows violet when it can be searched.</li>
+          <li>Guardian Pulse briefly stuns nearby thieves, but does not catch them automatically.</li>
+        </ol>
+      </article>
+    </div>
+
+    <div class="rules-section">
+      <h3>Controls</h3>
+
+      <div class="control-grid">
+        <span>
+          <kbd>A</kbd><kbd>D</kbd> / <kbd>←</kbd><kbd>→</kbd>
+          <b>Move</b>
+        </span>
+
+        <span>
+          <kbd>SPACE</kbd>
+          <b>Jump – hold toward an edge to pull yourself up</b>
+        </span>
+
+        <span>
+          <kbd>W</kbd><kbd>S</kbd> / <kbd>↑</kbd><kbd>↓</kbd>
+          <b>Climb fabric, furniture and pipes</b>
+        </span>
+
+        <span id="hideControlRule">
+          <kbd>Q</kbd> / <kbd>F</kbd>
+          <b>Hide or leave your hiding place</b>
+        </span>
+
+        <span>
+          <kbd>E</kbd> / <kbd>SHIFT</kbd>
+          <b>Special ability</b>
+        </span>
+
+        <span>
+          <kbd>P</kbd> / <kbd>ESC</kbd>
+          <b>Pause</b>
+        </span>
+
+        <span>
+          <kbd>M</kbd>
+          <b>Music on/off</b>
+        </span>
+      </div>
+
+      <p class="touch-rule">
+  On phones and tablets, turn the device sideways.
+  Use MOVE to walk, CLIMB near fabric, handles and pipes,
+  and ACTIONS to jump, hide or activate the selected ability.
+</p>
+    </div>
+
+    <div class="rules-section stealth-rules">
+      <h3>Draco warning</h3>
+
+      <div>
+        <span class="signal safe">CLEAR</span>
+        <p>Draco is roaming between the floor and furniture but has not noticed you.</p>
+      </div>
+
+      <div>
+        <span class="signal wary">SUSPICIOUS</span>
+        <p>He heard or saw something. Slow down and leave the area.</p>
+      </div>
+
+      <div>
+        <span class="signal chase">SPOTTED</span>
+        <p>Draco is chasing you. Break his line of sight and reach a hiding place.</p>
+      </div>
+
+      <div>
+        <span class="signal search">SEARCHING</span>
+        <p>He is checking where he last saw you. Wait until the room is clear.</p>
+      </div>
+    </div>
+
+    <div class="rules-section">
+      <h3>Level guide</h3>
+      <div id="levelRules" class="level-rules"></div>
+    </div>
+
+    <div class="rules-section">
+      <h3 id="abilityRulesTitle">Character abilities</h3>
+      <div id="abilityRules" class="ability-rules"></div>
+    </div>
+
+    <p class="rules-tip">
+      Tip: running footsteps and glowing floor zones make more noise.
+      Completing a room unlocks the next level, and progress is saved automatically in your browser.
+    </p>
+  </div>
+</section>
+
+        <nav
+  id="touchControls"
+  class="touch-controls hidden"
+  aria-label="Touch controls"
+>
+  <div class="touch-group touch-move" aria-label="Movement controls">
+    <span class="touch-group-label" aria-hidden="true">MOVE</span>
+
+    <button
+      type="button"
+      data-control="left"
+      aria-label="Move left"
+    >
+      ←
+    </button>
+
+    <button
+      type="button"
+      data-control="right"
+      aria-label="Move right"
+    >
+      →
+    </button>
+  </div>
+
+  <div class="touch-group touch-climb" aria-label="Climbing controls">
+    <span class="touch-group-label" aria-hidden="true">CLIMB</span>
+
+    <button
+      type="button"
+      data-control="up"
+      aria-label="Climb up"
+    >
+      ↑
+    </button>
+
+    <button
+      type="button"
+      data-control="down"
+      aria-label="Climb down"
+    >
+      ↓
+    </button>
+  </div>
+
+  <div class="touch-group touch-actions" aria-label="Action controls">
+    <span class="touch-group-label" aria-hidden="true">ACTIONS</span>
+
+    <button
+      type="button"
+      data-control="jump"
+      class="accent jump"
+      aria-label="Jump"
+    >
+      JUMP
+    </button>
+
+    <button
+      type="button"
+      data-control="hide"
+      class="accent hide"
+      aria-label="Hide or leave hiding place"
+    >
+      HIDE
+    </button>
+
+    <button
+      type="button"
+      data-control="ability"
+      class="accent alt ability"
+      aria-label="Use special ability"
+    >
+      SKILL
+    </button>
+    <button type="button" data-control="vault" class="accent alt" aria-label="Use relay drop or jackpot machine">USE</button>
+    <button type="button" data-control="stash" class="accent" aria-label="Secure points near a hiding spot">STASH</button>
+  </div>
+</nav>
+      </section>
+      <aside id="heistDashboard" class="mp-dashboard hidden" aria-label="Heist Circuit live match information">
+        <div class="mp-dashboard-top">
+          <strong class="mp-dashboard-brand">HEIST CIRCUIT <span>RELAY RUSH</span></strong>
+          <div id="mpDashAlarm" class="mp-dash-alarm"></div>
+          <div id="mpDashVault" class="mp-dash-vault"></div>
+          <div id="mpDashSupply" class="mp-dash-supply"></div>
+        </div>
+        <div id="mpDashContracts" class="mp-dash-contracts"></div>
+        <div id="mpDashPlayers" class="mp-dash-players"></div>
+      </aside>
+    </main>
+
+    <audio id="themeAudio" src="assets/theme-song.mp3" preload="auto" autoplay loop playsinline></audio>
+<audio id="ambienceAudio" preload="auto" loop playsinline></audio>
+    <script src="js/online-config.js"></script>
+    <script type="module" src="js/game.js"></script>
+  </body>
+</html>

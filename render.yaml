@@ -1,0 +1,9 @@
+services:
+  - type: web
+    name: tthc-dedicated-online
+    runtime: node
+    plan: free
+    buildCommand: echo "No external packages required"
+    startCommand: node multiplayer-server.mjs
+    healthCheckPath: /
+    autoDeployTrigger: commit
