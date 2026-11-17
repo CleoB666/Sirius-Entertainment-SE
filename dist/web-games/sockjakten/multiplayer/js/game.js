@@ -236,21 +236,25 @@ function setupTongueCast() {
   mount.append(cast);
   // Mouth positions in the original image, left to right plus Draco.
   const mouths = [
-    {label:'Strappy', x:.237, y:.712},
-    {label:'Clawster', x:.357, y:.812},
-    {label:'Trasselsudd', x:.492, y:.800},
-    {label:'Gramp', x:.676, y:.785},
-    {label:'Lairy', x:.848, y:.768},
-    {label:'Draco', x:.669, y:.266},
+    {label:'Strappy',    asset:'strappy',    x:387/1672,  y:632/941, w:32, h:39},
+    {label:'Clawster',   asset:'clawster',   x:596/1672,  y:772/941, w:28, h:29},
+    {label:'Trasselsudd',asset:'trasselsudd',x:829/1672,  y:733/941, w:24, h:25},
+    {label:'Gramp',      asset:'gramp',      x:1104/1672, y:740/941, w:30, h:35},
+    {label:'Lairy',      asset:'lairy',      x:1422/1672, y:736/941, w:24, h:25},
+    {label:'Draco',      asset:'draco',      x:1104/1672, y:220/941, w:31, h:43},
   ];
   const buttons = mouths.map((spot, index) => {
     const button = document.createElement('button');
     button.type = 'button';
     button.className = 'cast-tongue';
+    button.dataset.character = spot.asset;
     button.setAttribute('aria-label', spot.label + ' is sticking out their tongue! Click for a group reaction.');
     button.title = 'Catch the cheeky tongue!';
-    const tongue = document.createElement('span');
-    tongue.className = 'cast-tongue-shape';
+    const tongue = document.createElement('img');
+    tongue.className = 'cast-tongue-art';
+    tongue.src = 'assets/tongues/' + spot.asset + '.png';
+    tongue.alt = '';
+    tongue.draggable = false;
     tongue.setAttribute('aria-hidden', 'true');
     button.append(tongue);
     button.addEventListener('click', (event) => {
@@ -275,6 +279,9 @@ function setupTongueCast() {
     mouths.forEach((spot, i) => {
       buttons[i].style.left = Math.round(left + 1672 * scale * spot.x) + 'px';
       buttons[i].style.top = Math.round(top + 941 * scale * spot.y) + 'px';
+      const image = buttons[i].querySelector('.cast-tongue-art');
+      image.style.width = Math.max(7, Math.round(spot.w * scale)) + 'px';
+      image.style.height = Math.max(9, Math.round(spot.h * scale)) + 'px';
     });
   };
   if (typeof ResizeObserver !== 'undefined') new ResizeObserver(layout).observe(mount);
@@ -315,6 +322,43 @@ function setupTongueCast() {
 
 // Subtle walkable furniture seams, with a stronger local highlight near any thief.
 // Uses the existing room geometry; it does not introduce floating platforms.
+
+// v11: legible climb routes without inserting floating platforms or replacing room art.
+function drawSubtleClimbGuides() {
+  if (!state.level?.climbs?.length) return;
+  const actors = (state.mpPlayers?.length ? state.mpPlayers : [state.player]).filter(p => p?.active !== false && p && !p.hidden);
+  ctx.save();
+  for (const climb of state.level.climbs) {
+    if (![climb.x, climb.y, climb.w, climb.h].every(Number.isFinite) || climb.h < 12) continue;
+    const center = climb.x + climb.w/2;
+    const near = actors.some(p => {
+      const middle=p.x+p.w/2, feet=p.y+p.h;
+      const gapY=Math.max(climb.y-feet,0,feet-(climb.y+climb.h));
+      return Math.abs(middle-center)<105 && gapY<90;
+    });
+    const outer = near ? .56 : .20;
+    const railX = Math.min(12, Math.max(6, climb.w*.18));
+    const left = center-railX, right=center+railX;
+    // The rails are light seams against the actual furniture/background.
+    ctx.lineCap='round'; ctx.lineWidth=near?2.1:1.3;
+    ctx.strokeStyle=`rgba(178,224,226,${outer})`;
+    ctx.shadowColor=near?'rgba(124,213,235,.48)':'transparent';ctx.shadowBlur=near?8:0;
+    ctx.beginPath();ctx.moveTo(left,climb.y+3);ctx.lineTo(left,climb.y+climb.h-3);
+    ctx.moveTo(right,climb.y+3);ctx.lineTo(right,climb.y+climb.h-3);ctx.stroke();
+    ctx.shadowBlur=0; ctx.strokeStyle=`rgba(238,231,204,${near?.58:.28})`;
+    ctx.lineWidth=near?1.8:1.1;
+    for(let y=climb.y+16;y<climb.y+climb.h-8;y+=29){
+      ctx.beginPath();ctx.moveTo(left+2,y);ctx.lineTo(right-2,y);ctx.stroke();
+    }
+    if(near){
+      ctx.fillStyle='rgba(202,239,245,.72)';
+      ctx.beginPath();ctx.moveTo(center,climb.y+7);ctx.lineTo(center-4,climb.y+13);
+      ctx.lineTo(center+4,climb.y+13);ctx.closePath();ctx.fill();
+    }
+  }
+  ctx.restore();
+}
+
 function drawFurnitureSeams() {
   if (!state.level) return;
   const actors = state.mpPlayers?.length
@@ -485,6 +529,25 @@ function guardSockLayout(level) {
     }));
 }
 
+
+// v11: reset the 2D drawing context when changing rooms, never carry old blending/transform state forward.
+function mpPrepareCanvasForRoom(){
+  if(typeof ctx.reset==='function')ctx.reset();
+  else {ctx.setTransform(1,0,0,1,0,0);ctx.globalAlpha=1;ctx.globalCompositeOperation='source-over';ctx.filter='none';ctx.shadowBlur=0;ctx.clearRect(0,0,GAME.width,GAME.height);}
+  ctx.imageSmoothingEnabled=true;ctx.imageSmoothingQuality='high';
+}
+function mpSafeRenderLayer(label,task){
+  ctx.save();
+  try{task();}
+  catch(error){
+    if(!state._renderWarnings)state._renderWarnings=new Set();
+    if(!state._renderWarnings.has(label)){
+      state._renderWarnings.add(label);
+      console.error('[TTHC] Recovered drawing error in '+label,error);
+    }
+  }finally{ctx.restore();}
+}
+
 function initLevel() {
   if (online.connected && online.role === 'host') {
     online.send({type:'start',levelIndex:state.levelIndex,bots:mpLobby.bots,difficulty:mpLobby.difficulty});
@@ -495,6 +558,8 @@ function initLevel() {
   if (online.role === 'host' && online.connected) online.send({ type: 'start', levelIndex: state.levelIndex });
   mpRuntimeErrorV4=false;
   document.querySelector('#mpSafeErrorV4')?.remove();
+  state._renderWarnings=null;state._spriteFallbackLogged=false;
+  mpPrepareCanvasForRoom();
   const level = LEVELS[state.levelIndex];
   const selected = mpLobbySlots();
   const start = level.playerSpawn.thief;
@@ -2093,38 +2158,78 @@ function getCharacterFrame(entity) {
 }
 
 function drawCharacter(entity, interpolation = 1, alpha = 1) {
-  if (!entity.active) return;
-  const character = CHARACTERS[entity.id]; const frames = sprites.get(entity.id); const sprite = frames[getCharacterFrame(entity)] || frames[0];
-  const x = lerp(entity.prevX, entity.x, interpolation); const y = lerp(entity.prevY, entity.y, interpolation);
-  const moving = Math.abs(entity.vx) > 24;
-  const stepWave = Math.sin(entity.animDistance * .23);
-  const bob = entity.onGround && moving ? Math.abs(stepWave) * -2.2 : Math.sin(state.elapsed * 2.6 + entity.idlePhase) * .7;
-  const breath = moving ? 0 : Math.sin(state.elapsed * 2.4 + entity.idlePhase) * .012;
-  const speedStretch = clamp(Math.abs(entity.vy) / 1600, 0, .09); const land = entity.landSquash * .12;
-  const scaleY = 1 + speedStretch - land + breath; const scaleX = 1 - speedStretch * .5 + land * .65 - breath * .5;
-  const drawH = character.drawHeight; const drawW = drawH * (sprite.width / sprite.height);
-  const centerX = x + entity.w / 2; const bottom = y + entity.h + bob;
-  const concealment = entity.hidden ? .34 : entity.invisible > 0 ? .36 + Math.sin(state.elapsed * 18) * .04 : 1;
-  const respawnPulse=entity.damageCooldown>0 && entity.id!=='draco' ? .64+.23*Math.sin(state.elapsed*17) : 1;
-  if (!sprite || !Number.isFinite(x) || !Number.isFinite(y)) return;
-  ctx.save(); ctx.globalAlpha = clamp(alpha * concealment * respawnPulse * (entity.stunned > 0 && Math.floor(state.elapsed * 14) % 2 ? .38 : 1), .28, 1);
-  if (!entity.climbing && entity.ledgePull <= 0) {
-    const shadowWidth = Math.max(12, Math.min(drawW * .34, entity.w * 1.05));
-    ctx.fillStyle = entity.onGround ? "rgba(0,0,0,.43)" : "rgba(0,0,0,.19)";
-    ctx.beginPath(); ctx.ellipse(centerX, bottom + 3, shadowWidth, entity.onGround ? 5 : 3, 0, 0, Math.PI * 2); ctx.fill();
-  }
-  const climbSway = entity.climbing ? Math.sin(entity.animDistance * .18) * .055 : 0;
-  const airTilt = entity.onGround ? 0 : clamp(entity.vx / 1350, -.13, .13);
-  ctx.translate(centerX, bottom); ctx.scale(entity.face * scaleX, scaleY);
-  ctx.rotate(climbSway + airTilt + clamp(entity.vx / 2700, -.095, .095) * entity.face);
-  ctx.filter = entity === (online.role!=='local' ? state.mpPlayers.find(p=>p.remoteSlot===online.slot) : state.player) ? `drop-shadow(0 0 5px ${character.color})` : "drop-shadow(0 3px 3px rgba(0,0,0,.55))";
-  ctx.drawImage(sprite, -drawW / 2, -drawH, drawW, drawH); ctx.restore();
+  if (!entity || entity.active === false) return;
+  const character = CHARACTERS[entity.id];
+  if (!character) return;
+  const frames = sprites.get(entity.id);
+  const frameIndex = getCharacterFrame(entity);
+  const sprite = frames?.[frameIndex] || frames?.[0];
+  const xNow = Number.isFinite(entity.x) ? entity.x : Number.isFinite(entity.prevX) ? entity.prevX : 0;
+  const yNow = Number.isFinite(entity.y) ? entity.y : Number.isFinite(entity.prevY) ? entity.prevY : 0;
+  const xPrev = Number.isFinite(entity.prevX) ? entity.prevX : xNow;
+  const yPrev = Number.isFinite(entity.prevY) ? entity.prevY : yNow;
+  const t = Number.isFinite(interpolation) ? clamp(interpolation,0,1) : 1;
+  const x=lerp(xPrev,xNow,t), y=lerp(yPrev,yNow,t);
+  const phase = Number.isFinite(entity.idlePhase) ? entity.idlePhase : 0;
+  const clock = Number.isFinite(state.elapsed) ? state.elapsed : 0;
+  const distanceTravelled = Number.isFinite(entity.animDistance) ? entity.animDistance : 0;
+  const vx = Number.isFinite(entity.vx) ? entity.vx : 0;
+  const vy = Number.isFinite(entity.vy) ? entity.vy : 0;
+  const w = Number.isFinite(entity.w) && entity.w>0 ? entity.w : character.width;
+  const h = Number.isFinite(entity.h) && entity.h>0 ? entity.h : character.height;
+  const face = entity.face === -1 ? -1 : 1;
+  const moving=Math.abs(vx)>24;
+  const bob=entity.onGround&&moving ? -2.2*Math.abs(Math.sin(distanceTravelled*.23)) : Math.sin(clock*2.6+phase)*.7;
+  const breath=moving?0:Math.sin(clock*2.4+phase)*.012;
+  const stretch=clamp(Math.abs(vy)/1600,0,.09),land=Number.isFinite(entity.landSquash)?entity.landSquash*.12:0;
+  const scaleY=1+stretch-land+breath, scaleX=1-stretch*.5+land*.65-breath*.5;
+  const drawH=character.drawHeight;
+  const drawW=sprite?.width>0&&sprite?.height>0?drawH*(sprite.width/sprite.height):w;
+  const centerX=x+w/2, bottom=y+h+bob;
+  const hidden=!!entity.hidden;
+  const invis=Number.isFinite(entity.invisible)?entity.invisible:0;
+  const concealment=hidden?.34:invis>0?.36+Math.sin(clock*18)*.04:1;
+  const cooldown=Number.isFinite(entity.damageCooldown)?entity.damageCooldown:0;
+  const pulse=cooldown>0&&entity.id!=='draco'?.64+.23*Math.sin(clock*17):1;
+  const stun=Number.isFinite(entity.stunned)?entity.stunned:0;
+  const opacity=clamp((Number.isFinite(alpha)?alpha:1)*concealment*pulse*(stun>0&&Math.floor(clock*14)%2?.38:1),.28,1);
+  ctx.save();
+  try {
+    ctx.globalAlpha=opacity;
+    if(!entity.climbing && !(entity.ledgePull > 0)){
+      ctx.fillStyle=entity.onGround?'rgba(0,0,0,.43)':'rgba(0,0,0,.19)';
+      ctx.beginPath();ctx.ellipse(centerX,bottom+3,Math.max(12,Math.min(drawW*.34,w*1.05)),entity.onGround?5:3,0,0,Math.PI*2);ctx.fill();
+    }
+    ctx.translate(centerX,bottom);
+    ctx.scale(face*scaleX,scaleY);
+    const tilt=entity.onGround?0:clamp(vx/1350,-.13,.13);
+    const sway=entity.climbing?Math.sin(distanceTravelled*.18)*.055:0;
+    ctx.rotate(sway+tilt+clamp(vx/2700,-.095,.095)*face);
+    const focus=online.role==='local'?state.player:state.mpPlayers.find(p=>p.remoteSlot===online.slot);
+    ctx.filter=entity===focus?`drop-shadow(0 0 5px ${character.color})`:'drop-shadow(0 3px 3px rgba(0,0,0,.55))';
+    if(sprite?.width>0&&sprite?.height>0){
+      ctx.drawImage(sprite,-drawW/2,-drawH,drawW,drawH);
+    } else {
+      // Keep an avatar visible even if a sprite unexpectedly fails to load.
+      ctx.fillStyle=character.color;
+      ctx.beginPath();ctx.ellipse(0,-h/2,w*.48,h*.47,0,0,Math.PI*2);ctx.fill();
+      ctx.fillStyle='#1b202c';ctx.font='bold 11px system-ui';ctx.textAlign='center';ctx.fillText(character.name.slice(0,2),0,-h/2+4);
+      if(!state._spriteFallbackLogged){console.warn('[TTHC] Used avatar fallback for missing sprite',entity.id);state._spriteFallbackLogged=true;}
+    }
+  } finally {ctx.restore();}
 }
 
 function render(interpolation = 1) {
-  if (!state.level) return; ctx.setTransform(1,0,0,1,0,0); ctx.globalAlpha=1;ctx.filter="none";ctx.clearRect(0, 0, GAME.width, GAME.height); drawBackdrop(); drawFurnitureSeams(); drawVision(); drawRoomCues(); drawHazards();
+  if (!state.level) return;
+  ctx.setTransform(1,0,0,1,0,0);ctx.globalAlpha=1;ctx.globalCompositeOperation='source-over';ctx.filter='none';ctx.shadowBlur=0;ctx.clearRect(0,0,GAME.width,GAME.height);
+  mpSafeRenderLayer('background',drawBackdrop);
+  mpSafeRenderLayer('furniture seams',drawFurnitureSeams);
+  mpSafeRenderLayer('climb guides',drawSubtleClimbGuides);
+  mpSafeRenderLayer('vision',drawVision);
+  mpSafeRenderLayer('room cues',drawRoomCues);
+  mpSafeRenderLayer('hazards',drawHazards);
   state.items.forEach(item => {
-    drawItem(item);
+    mpSafeRenderLayer('item '+item.kind,()=>drawItem(item));
     if(item.collected)return;
     if(item.sockWave && state.elapsed-item.spawnedAt<7){
       ctx.save();ctx.globalAlpha=.55+.2*Math.sin(state.elapsed*7);
@@ -2145,12 +2250,12 @@ function render(interpolation = 1) {
       ctx.fillText(label,item.x,item.y-28);ctx.restore();
     }
   });
-  mpDrawVaults();
-  mpDrawRelay();
+  mpSafeRenderLayer('jackpot',mpDrawVaults);
+  mpSafeRenderLayer('relay',mpDrawRelay);
   // Exit disabled in the multiplayer scoring match.
   if (state.decoy) { const fake = { ...state.player, x: state.decoy.x, y: state.decoy.y, prevX: state.decoy.x, prevY: state.decoy.y, face: state.decoy.face }; drawCharacter(fake, interpolation, .38 + Math.sin(state.elapsed * 12) * .1); }
-  state.enemies.forEach((enemy) => drawCharacter(enemy, interpolation));
-  state.mpPlayers.slice(1).forEach(player => drawCharacter(player, interpolation));
+  state.enemies.forEach((enemy) => mpSafeRenderLayer('enemy '+enemy.id,()=>drawCharacter(enemy, interpolation)));
+  state.mpPlayers.slice(1).forEach(player => mpSafeRenderLayer('player '+player.mpIndex,()=>drawCharacter(player, interpolation)));
   if (state.selectedId === "draco") {
     state.enemies.forEach((enemy) => {
       if (!enemy.active || !enemy.hideSpot || distance(enemy, state.player) > 185) return;
@@ -2167,7 +2272,7 @@ function render(interpolation = 1) {
     ctx.beginPath(); ctx.arc(enemy.x + enemy.w / 2, enemy.y + enemy.h / 2, radius, 0, Math.PI * 2); ctx.stroke(); ctx.restore();
   });
   const playerAlpha = 1;
-  drawCharacter(state.player, interpolation, playerAlpha);
+  mpSafeRenderLayer('player 1',()=>drawCharacter(state.player, interpolation, playerAlpha));
   if (online.role==='local' && state.hidden && state.hiddenSpot) {
     ctx.fillStyle = "rgba(5,14,23,.86)"; ctx.fillRect(state.hiddenSpot.x + state.hiddenSpot.w / 2 - 52, state.hiddenSpot.y + 8, 104, 22);
     ctx.fillStyle = "#bfeeff";
@@ -3267,6 +3372,9 @@ function mpReceiveSnapshot(snapshot) {
   if(!state.level||state.levelIndex!==snapshot.levelIndex){
     state.levelIndex=snapshot.levelIndex;
     state.level=LEVELS[snapshot.levelIndex];
+    mpRuntimeErrorV4=false;state.paused=false;
+    document.querySelector('#mpSafeErrorV4')?.remove();
+    state._renderWarnings=null;mpPrepareCanvasForRoom();
     state.dust=Array.from({length:38},(_,i)=>({x:(i*89+47)%GAME.width,y:100+(i*137)%510,r:.6+i%3*.4,speed:2+i%5}));
   }
   if(!Array.isArray(snapshot.players)||!snapshot.players.length||!Array.isArray(snapshot.items))return;
@@ -3276,6 +3384,7 @@ function mpReceiveSnapshot(snapshot) {
     return {...p, prevX:Number.isFinite(old?.x)?old.x:p.x,prevY:Number.isFinite(old?.y)?old.y:p.y};
   });
   state.player=state.mpPlayers[0];
+  state.mpPlayers.forEach((p,i)=>{const start=state.level.playerSpawn.thief;mpSafePosition(p,[start[0]+i*52,start[1]],p.displayName||'Player');if(p.face!==1&&p.face!==-1)p.face=1;});
   state.enemies=(snapshot.enemies||[]).map((p,i)=>({ ...p,prevX:Number.isFinite(state.enemies[i]?.x)?state.enemies[i].x:p.x,prevY:Number.isFinite(state.enemies[i]?.y)?state.enemies[i].y:p.y }));
   state.items=snapshot.items;
   state.vaults=snapshot.vaults||[];
@@ -3318,6 +3427,9 @@ function mpOnlineHandle(packet) {
   if(packet.type==='start' && online.connected){
     state.levelIndex=packet.levelIndex;
     state.level=LEVELS[packet.levelIndex];
+    mpRuntimeErrorV4=false;state.paused=false;
+    document.querySelector('#mpSafeErrorV4')?.remove();
+    state._renderWarnings=null;mpPrepareCanvasForRoom();
     online.phase='playing';
     showHint('Joining the host’s shared heist…',3);
   }

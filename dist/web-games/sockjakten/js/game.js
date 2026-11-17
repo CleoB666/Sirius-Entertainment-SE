@@ -194,21 +194,25 @@ function setupTongueCast() {
   mount.append(cast);
   // Mouth positions in the original image, left to right plus Draco.
   const mouths = [
-    {label:'Strappy', x:.237, y:.712},
-    {label:'Clawster', x:.357, y:.812},
-    {label:'Trasselsudd', x:.492, y:.800},
-    {label:'Gramp', x:.676, y:.785},
-    {label:'Lairy', x:.848, y:.768},
-    {label:'Draco', x:.669, y:.266},
+    {label:'Strappy',    asset:'strappy',    x:387/1672,  y:632/941, w:32, h:39},
+    {label:'Clawster',   asset:'clawster',   x:596/1672,  y:772/941, w:28, h:29},
+    {label:'Trasselsudd',asset:'trasselsudd',x:829/1672,  y:733/941, w:24, h:25},
+    {label:'Gramp',      asset:'gramp',      x:1104/1672, y:740/941, w:30, h:35},
+    {label:'Lairy',      asset:'lairy',      x:1422/1672, y:736/941, w:24, h:25},
+    {label:'Draco',      asset:'draco',      x:1104/1672, y:220/941, w:31, h:43},
   ];
   const buttons = mouths.map((spot, index) => {
     const button = document.createElement('button');
     button.type = 'button';
     button.className = 'cast-tongue';
+    button.dataset.character = spot.asset;
     button.setAttribute('aria-label', spot.label + ' is sticking out their tongue! Click for a group reaction.');
     button.title = 'Catch the cheeky tongue!';
-    const tongue = document.createElement('span');
-    tongue.className = 'cast-tongue-shape';
+    const tongue = document.createElement('img');
+    tongue.className = 'cast-tongue-art';
+    tongue.src = 'assets/tongues/' + spot.asset + '.png';
+    tongue.alt = '';
+    tongue.draggable = false;
     tongue.setAttribute('aria-hidden', 'true');
     button.append(tongue);
     button.addEventListener('click', (event) => {
@@ -233,6 +237,9 @@ function setupTongueCast() {
     mouths.forEach((spot, i) => {
       buttons[i].style.left = Math.round(left + 1672 * scale * spot.x) + 'px';
       buttons[i].style.top = Math.round(top + 941 * scale * spot.y) + 'px';
+      const image = buttons[i].querySelector('.cast-tongue-art');
+      image.style.width = Math.max(7, Math.round(spot.w * scale)) + 'px';
+      image.style.height = Math.max(9, Math.round(spot.h * scale)) + 'px';
     });
   };
   if (typeof ResizeObserver !== 'undefined') new ResizeObserver(layout).observe(mount);
@@ -273,6 +280,43 @@ function setupTongueCast() {
 
 // Subtle walkable furniture seams, with a stronger local highlight near any thief.
 // Uses the existing room geometry; it does not introduce floating platforms.
+
+// v11: legible climb routes without inserting floating platforms or replacing room art.
+function drawSubtleClimbGuides() {
+  if (!state.level?.climbs?.length) return;
+  const actors = (state.mpPlayers?.length ? state.mpPlayers : [state.player]).filter(p => p?.active !== false && p && !p.hidden);
+  ctx.save();
+  for (const climb of state.level.climbs) {
+    if (![climb.x, climb.y, climb.w, climb.h].every(Number.isFinite) || climb.h < 12) continue;
+    const center = climb.x + climb.w/2;
+    const near = actors.some(p => {
+      const middle=p.x+p.w/2, feet=p.y+p.h;
+      const gapY=Math.max(climb.y-feet,0,feet-(climb.y+climb.h));
+      return Math.abs(middle-center)<105 && gapY<90;
+    });
+    const outer = near ? .56 : .20;
+    const railX = Math.min(12, Math.max(6, climb.w*.18));
+    const left = center-railX, right=center+railX;
+    // The rails are light seams against the actual furniture/background.
+    ctx.lineCap='round'; ctx.lineWidth=near?2.1:1.3;
+    ctx.strokeStyle=`rgba(178,224,226,${outer})`;
+    ctx.shadowColor=near?'rgba(124,213,235,.48)':'transparent';ctx.shadowBlur=near?8:0;
+    ctx.beginPath();ctx.moveTo(left,climb.y+3);ctx.lineTo(left,climb.y+climb.h-3);
+    ctx.moveTo(right,climb.y+3);ctx.lineTo(right,climb.y+climb.h-3);ctx.stroke();
+    ctx.shadowBlur=0; ctx.strokeStyle=`rgba(238,231,204,${near?.58:.28})`;
+    ctx.lineWidth=near?1.8:1.1;
+    for(let y=climb.y+16;y<climb.y+climb.h-8;y+=29){
+      ctx.beginPath();ctx.moveTo(left+2,y);ctx.lineTo(right-2,y);ctx.stroke();
+    }
+    if(near){
+      ctx.fillStyle='rgba(202,239,245,.72)';
+      ctx.beginPath();ctx.moveTo(center,climb.y+7);ctx.lineTo(center-4,climb.y+13);
+      ctx.lineTo(center+4,climb.y+13);ctx.closePath();ctx.fill();
+    }
+  }
+  ctx.restore();
+}
+
 function drawFurnitureSeams() {
   if (!state.level) return;
   const actors = state.mpPlayers?.length
@@ -2213,7 +2257,7 @@ function drawCharacter(entity, interpolation = 1, alpha = 1) {
 }
 
 function render(interpolation = 1) {
-  if (!state.level) return; ctx.clearRect(0, 0, GAME.width, GAME.height); drawBackdrop(); drawFurnitureSeams(); drawVision(); drawRoomCues(); drawHazards();
+  if (!state.level) return; ctx.clearRect(0, 0, GAME.width, GAME.height); drawBackdrop(); drawFurnitureSeams(); drawSubtleClimbGuides(); drawVision(); drawRoomCues(); drawHazards();
   state.items.forEach(drawItem);
   if (state.selectedId !== "draco") drawExit();
   if (state.decoy) { const fake = { ...state.player, x: state.decoy.x, y: state.decoy.y, prevX: state.decoy.x, prevY: state.decoy.y, face: state.decoy.face }; drawCharacter(fake, interpolation, .38 + Math.sin(state.elapsed * 12) * .1); }

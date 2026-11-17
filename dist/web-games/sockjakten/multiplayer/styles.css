@@ -1199,55 +1199,30 @@ body.mp-playing .game-shell {
 body.mp-online-guest #characterGrid{display:none!important}
 @media(max-width:700px){.mp-online-fields{grid-template-columns:1fr}.mp-online-box{padding:12px}.mp-online-buttons .btn{min-width:0;flex:1}}
 
-
-/* Character tongue easter egg: 2 seconds every 10 seconds, same art in both modes. */
-.start-cast .start-cast-image { pointer-events: none; }
+/* Cast easter egg v11: individually illustrated, mouth-aligned tongue artwork. */
+.start-cast .start-cast-image { pointer-events:none; }
 .start-cast .cast-tongue {
-  position: absolute; z-index: 8; box-sizing: border-box;
-  transform: translate(-50%, -32%); width: 34px; height: 38px;
-  background: transparent; border: 0; border-radius: 50%;
-  padding: 0; opacity: 0; visibility: hidden; pointer-events: none;
-  cursor: pointer; filter: drop-shadow(0 0 9px #ff88b6);
+  position:absolute; z-index:8; display:flex; align-items:flex-start; justify-content:center;
+  box-sizing:border-box; transform:translate(-50%,-6%);
+  width:40px; height:48px; padding:0; border:0; border-radius:44%;
+  background:transparent; opacity:0; visibility:hidden; pointer-events:none; cursor:pointer;
+  -webkit-tap-highlight-color:transparent; transition:opacity .09s linear;
 }
 .start-cast.tongue-one .cast-tongue.is-visible,
-.start-cast.tongue-all .cast-tongue.is-visible { opacity: 1; visibility: visible; }
-.start-cast.tongue-one .cast-tongue.is-visible { pointer-events: auto; }
-.cast-tongue-shape {
-  position: absolute; top: 9px; left: 10px; display: block;
-  width: 15px; height: 24px;
-  border: 2px solid #74203a;
-  border-radius: 45% 45% 52% 52% / 22% 22% 73% 73%;
-  background: linear-gradient(95deg, #f966a0, #ffadd0 50%, #f16c9d);
-  box-shadow: 0 0 12px 3px rgba(255, 99, 157, .88), inset 0 -4px 4px rgba(188, 49, 97, .3);
-  animation: castTongueWiggle .38s ease-in-out infinite alternate;
-}
-.cast-tongue-shape::after {
-  content: ''; position: absolute; left: 6px; top: 9px; height: 10px;
-  border-left: 1px solid rgba(129, 30, 69, .45);
+.start-cast.tongue-all .cast-tongue.is-visible { opacity:1; visibility:visible; }
+.start-cast.tongue-one .cast-tongue.is-visible { pointer-events:auto; }
+.cast-tongue-art {
+  display:block; object-fit:fill; width:19px; height:26px;
+  filter:drop-shadow(0 1px 1px rgba(21,6,13,.72));
+  transform-origin:50% 12%; animation:castTongueNatural .46s ease-in-out infinite alternate;
 }
 .start-cast.tongue-one .cast-tongue.is-visible::before {
-  content: ''; position: absolute; inset: -3px; border-radius: 50%;
-  outline: 2px dashed rgba(255, 221, 237, .9);
-  animation: castTongueHalo 1s ease-in-out infinite alternate;
+  content:''; position:absolute; inset:3px 7px 4px;
+  border-radius:50%; border:1px solid rgba(255,196,209,.54);
+  box-shadow:0 0 10px rgba(251,153,177,.5); pointer-events:none;
+  animation:castTongueHalo 1s ease-in-out infinite alternate;
 }
-@keyframes castTongueWiggle { to { transform: rotate(8deg) translateY(2px); } }
-@keyframes castTongueHalo { to { outline-offset: 5px; opacity: .5; } }
-@media (prefers-reduced-motion: reduce) {
-  .cast-tongue-shape, .start-cast.tongue-one .cast-tongue.is-visible::before { animation: none; }
-}
-
-/* Same portrait-and-name lobby for all humans, including online guests. */
-.mp-slot {border-radius:12px;justify-content:flex-start;min-height:238px;}
-.mp-slot-own {border-color:rgba(152,229,246,.75);background:linear-gradient(145deg,rgba(12,40,59,.95),rgba(6,18,32,.95));}
-.mp-slot-header {color:#ffcb8d!important;font-weight:900;font-size:.76rem;letter-spacing:.08em;}
-.mp-slot img {height:104px;max-width:100%;object-fit:contain;}
-.mp-slot label {width:100%;font-size:.65rem;color:#afd9e8;}
-.mp-slot input,.mp-slot select {width:100%;box-sizing:border-box;color:#fff;background:#102034;border:1px solid #6696a8;border-radius:7px;padding:9px;min-width:0;font:inherit;}
-.mp-slot input:focus,.mp-slot select:focus {outline:2px solid #b7edff;outline-offset:1px;}
-.mp-lobby-readonly {background:rgba(63,120,152,.13);border:1px solid rgba(140,210,235,.35);padding:12px;border-radius:8px;color:#d9effa;margin-bottom:15px;}
-.mp-lobby-tip {color:#c3dfe8;font-size:.85rem;}
-body.mp-online-guest #mpOnlineGuestOptions {display:none!important;}
-.mp-online-box.mp-room-connected .mp-online-fields label:nth-child(2) {display:none;}
-
-@media(max-width:760px){.mp-slots{grid-template-columns:repeat(2,minmax(0,1fr));}}
-@media(max-width:450px){.mp-slots{grid-template-columns:1fr 1fr;gap:7px}.mp-slot{padding:7px}.mp-slot img{height:76px;}}
+.start-cast .cast-tongue:focus-visible { outline:2px solid #bceaff; outline-offset:3px; }
+@keyframes castTongueNatural { from { transform:rotate(-3deg) translateY(0); } to { transform:rotate(3deg) translateY(2px); } }
+@keyframes castTongueHalo { to { box-shadow:0 0 14px rgba(251,153,177,.7); opacity:.56; } }
+@media (prefers-reduced-motion:reduce) { .cast-tongue-art,.start-cast.tongue-one .cast-tongue.is-visible::before {animation:none;} }
