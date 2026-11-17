@@ -297,8 +297,15 @@ export function createMatch({levelIndex=0,participants=[],difficulty='normal'}={
     if(p.aiWatch>1.2){
       const moved=Math.hypot(p.x-p.aiWatchX,p.y-p.aiWatchY);
       p.aiWatch=0;p.aiWatchX=p.x;p.aiWatchY=p.y;
-      if(moved<9 && !p.hidden){p.aiFrozen++;p.aiGoal=null;p.aiDecision=0;p._navTransit=null;p.navSurface=undefined;
-        if(p.aiFrozen>=2){nav.recover(p,p.aiFrozen+p.mpIndex);p.aiFrozen=0;}}
+      if(moved<9 && !p.hidden){p.aiFrozen++;p.aiGoal=null;p.aiDecision=0;p._navTransit=null;p.navSurface=undefined;p._navFallback=null;
+        if(p.aiFrozen>=2){
+          p.aiRecover=(p.aiRecover||0)+1;
+          if(!nav.recover(p,p.aiRecover+p.mpIndex)){
+            p.face=p.aiRecover%2===0?-1:1;p.vx=p.face*140;
+            if(p.onGround)p.jumpBuffer=.17;
+          }
+          p.aiFrozen=0;
+        }}
       else p.aiFrozen=0;
     }
     return steer;
@@ -342,16 +349,41 @@ export function createMatch({levelIndex=0,participants=[],difficulty='normal'}={
       for(const it of items){if(it.collected)continue;if(hit(actor,{x:it.x-20,y:it.y-20,w:40,h:40}))pickup(p,it);}
       if(p.cargo>=2 && p.mpType==='bot' && Math.abs(centerX(p)-relay.stations[relay.index].x)<68 && Math.abs(centerY(p)-relay.stations[relay.index].y)<77)use(p);
     }
+    guard.mpDisengageV12=Math.max(0,(guard.mpDisengageV12||0)-dt);
     if(guard.stunned>0){guard.stunned=Math.max(0,guard.stunned-dt);}else{
       let target=state.decoy?{x:state.decoy.x,y:state.decoy.y,w:0,h:0}:players.filter(p=>p.active&&!p.hidden&&p.invisible<=0)
         .sort((a,b)=>dist(a,guard)-dist(b,guard))[0];
-      if(target && dist(target,guard)<310 && Math.abs(centerY(target)-centerY(guard))<175){guard.mode='chase';guard.lastSeenX=centerX(target);guard.lastSeenY=centerY(target);guard.mpMemory=3.4;}
+      if(guard.mpDisengageV12<=0 && target && dist(target,guard)<310 && Math.abs(centerY(target)-centerY(guard))<175){guard.mode='chase';guard.lastSeenX=centerX(target);guard.lastSeenY=centerY(target);guard.mpMemory=3.4;}
       else {guard.mpMemory-=dt;if(guard.mpMemory<=0)guard.mode='patrol';}
       guard.mpPatrolTimer-=dt;
       if(guard.mpPatrolTimer<=0){guard.mpPatrolX=guard.x<GAME.width/2?GAME.width-110:110;guard.mpPatrolTimer=5;}
       const goal=guard.mode==='chase'?{x:guard.lastSeenX,y:guard.lastSeenY}:{x:guard.mpPatrolX,y:level.floorY-25};
       const steer=nav.steer(guard,goal,dt);
       if(!nav.advance(guard,dt))physics(guard,steer,dt,(guard.mode==='chase'?.85:.55)*(state.heist.frenzy>0?1.2:1));
+      // Draco uses the same progress watchdog as the thieves, so a stale
+      // unreachable target cannot leave the entire chase motionless.
+      guard.aiWatch=(guard.aiWatch||0)+dt;
+      if(guard.aiWatch>=1.05){
+        const priorX=Number.isFinite(guard.aiWatchX)?guard.aiWatchX:guard.x;
+        const priorY=Number.isFinite(guard.aiWatchY)?guard.aiWatchY:guard.y;
+        const moved=Math.hypot(guard.x-priorX,guard.y-priorY);
+        const far=Math.hypot(centerX(guard)-goal.x,centerY(guard)-goal.y)>35 || guard.mode==='chase';
+        guard.aiWatchX=guard.x;guard.aiWatchY=guard.y;guard.aiWatch=0;
+        guard.aiStall=far && moved<8 ? (guard.aiStall||0)+1 : 0;
+        if(guard.aiStall>=2){
+          guard.aiStall=0;guard.aiRecover=(guard.aiRecover||0)+1;
+          guard._navTransit=null;guard.navSurface=undefined;guard._navFallback=null;
+          guard.climbing=false;guard.mode='patrol';guard.mpMemory=0;
+          guard.mpDisengageV12=3.4;
+          const dir=guard.x<GAME.width/2 ? 1 : -1;
+          guard.mpPatrolX=clamp(guard.x+dir*400,80,GAME.width-80);
+          guard.mpPatrolTimer=4;
+          if(!nav.recover(guard,guard.aiRecover)){
+            guard.face=dir;guard.vx=dir*120;
+            if(guard.onGround)guard.jumpBuffer=.17;
+          }
+        }
+      }
     }
     for(const p of players){if(!p.active||p.damageCooldown>0||p.invisible>0)continue;
       if(p.hidden){if(p.hideNoise&&dist(p,guard)<75)damage(p);}

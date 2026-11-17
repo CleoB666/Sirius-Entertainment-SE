@@ -142,9 +142,20 @@ export function createNavigator(level, width = 1280) {
   function advance(actor, dt) {
     const transit = actor._navTransit;
     if (!transit) return false;
-    const target = surfaces[transit.edge.to];
-    const destX = transit.edge.xB;
-    const destY = target.y - actor.h;
+    const target = surfaces[transit.edge?.to];
+    const destX = transit.edge?.xB;
+    const destY = target?.y - actor.h;
+    // A stale graph edge or an interrupted transition must never hold an
+    // NPC in a permanent climbing or moving state.
+    transit.age = (transit.age || 0) + dt;
+    if (!target || !Number.isFinite(destX) || !Number.isFinite(destY) ||
+        !Number.isFinite(actor.x) || !Number.isFinite(actor.y) ||
+        transit.age > 4.2) {
+      actor._navTransit = null;
+      actor.navSurface = undefined;
+      actor.climbing = false;
+      return false;
+    }
     actor.prevX = actor.x;
     actor.prevY = actor.y;
     actor.onGround = false;
@@ -194,11 +205,42 @@ export function createNavigator(level, width = 1280) {
   }
   function steer(actor, goal, dt) {
     const idle={left:false,right:false,up:false,down:false,jumpHeld:false};
-    if(actor._navTransit || !goal) return idle;
+    if(actor._navTransit || !goal || !Number.isFinite(goal.x) || !Number.isFinite(goal.y)) return idle;
     const current=actorSurface(actor);
     const goalSurface=itemSurface(goal);
-    const path=route(current,goalSurface,actor.x+actor.w/2,goal.x);
+    let path=route(current,goalSurface,actor.x+actor.w/2,goal.x);
     let targetX=goal.x;
+    if(path === null && current!==goalSurface) {
+      // Never walk forever into a wall while trying to reach an isolated
+      // platform. Select a connected intermediate platform instead.
+      let fallback=actor._navFallback;
+      if(!fallback || fallback.from!==current || fallback.to!==goalSurface || fallback.ttl<=0) {
+        let choice=null;
+        for(let i=0;i<surfaces.length;i++) {
+          if(i===current)continue;
+          const candidate=route(current,i,actor.x+actor.w/2,goal.x);
+          if(!candidate?.length)continue;
+          const s=surfaces[i];
+          const cost=Math.abs(midpoint(s)-goal.x)+Math.abs(s.y-(goal.y+28))*1.5+candidate.length*30;
+          if(!choice || cost<choice.cost)choice={i,cost,path:candidate};
+        }
+        fallback={from:current,to:goalSurface,path:choice?.path||null,
+          waypoint:choice ? midpoint(surfaces[choice.i]) :
+            (surfaces[current] ? midpoint(surfaces[current]) : actor.x + actor.w/2),ttl:1};
+        actor._navFallback=fallback;
+      }
+      fallback.ttl-=Math.max(0,dt);
+      path=fallback.path;
+      if(!path?.length)targetX=fallback.waypoint;
+    } else actor._navFallback=null;
+    // If we arrive horizontally but stand on a different height, force a
+    // fresh surface assessment rather than returning idle forever.
+    if(!path?.length && Math.abs(targetX-(actor.x+actor.w/2))<10 &&
+       Math.abs((actor.y+actor.h)-surfaces[goalSurface].y)>48) {
+      actor.navSurface=undefined;
+      const s=surfaces[current];
+      if(s)targetX=actor.x+actor.w/2 < midpoint(s) ? s.x+s.w-actor.w-18 : s.x+18;
+    }
     if(path?.length){
       const edge=path[0];
       targetX=edge.xA+actor.w/2;
@@ -228,6 +270,7 @@ export function createNavigator(level, width = 1280) {
     if (!actor || !Number.isFinite(actor.x) || !Number.isFinite(actor.y)) return false;
     actor._navTransit = null;
     actor.navSurface = undefined;
+    actor._navFallback = null;
     const from = actorSurface(actor);
     const edges = (graph[from] || []).filter(edge =>
       edge && surfaces[edge.to] && Number.isFinite(edge.xB) && Number.isFinite(edge.cost)

@@ -3175,8 +3175,11 @@ function mpSelectTarget(draco){
 // Does not jump continually at the bot's X coordinate.
 function mpGuardianUpdate(draco,dt){
   if(!draco.active || !mpNavigator)return;
+  draco.mpDisengageV12=Math.max(0,(draco.mpDisengageV12||0)-dt);
   const candidates=state.mpPlayers.filter(p=>p.active && p.invisible<=0 && !p.hidden && p.damageCooldown<=0);
-  const visible=candidates.filter(p=>canSeePlayer(draco,p) && distance(p,draco)<365)
+  // After hitting a dead end, finish a short escape route before chasing
+  // an unreachable target again (otherwise chase immediately re-locks).
+  const visible=draco.mpDisengageV12>0 ? null : candidates.filter(p=>canSeePlayer(draco,p) && distance(p,draco)<365)
     .sort((a,b)=>distance(a,draco)-distance(b,draco))[0];
   draco.mpPatrolTimer=(draco.mpPatrolTimer||0)-dt;
   draco.mpMemory=(draco.mpMemory||0)-dt;
@@ -3230,6 +3233,7 @@ function mpGuardianUpdate(draco,dt){
   const controls=mpNavigator.steer(draco,goal,dt);
   if(!mpNavigator.advance(draco,dt))
     updateEntity(draco,dt,controls,(draco.mode==='chase'?1.05:draco.mode==='alert'?.76:.62)*(state.slowTimer>0?.5:1)*(state.heist?.frenzy>0?1.2:1));
+  mpGuardianWatchdogV12(draco,dt,goal);
 
   // Checking every player prevents Draco from ignoring P2 or a nearby bot.
   for(const p of state.mpPlayers){
@@ -3249,6 +3253,43 @@ function mpGuardianUpdate(draco,dt){
   }
 }
 
+// Both the guardian and thieves must be able to abandon an impossible route.
+// This monitors real displacement, not whether an AI has selected an objective.
+function mpGuardianWatchdogV12(draco, dt, goal) {
+  if(!draco?.active || !mpNavigator || draco.stunned>0) return;
+  draco.mpWatchAge=(draco.mpWatchAge||0)+dt;
+  if(draco.mpWatchAge<1.05) return;
+  const age=draco.mpWatchAge;
+  draco.mpWatchAge=0;
+  const oldX=Number.isFinite(draco.mpWatchX)?draco.mpWatchX:draco.x;
+  const oldY=Number.isFinite(draco.mpWatchY)?draco.mpWatchY:draco.y;
+  const moved=Math.hypot(draco.x-oldX,draco.y-oldY);
+  draco.mpWatchX=draco.x;draco.mpWatchY=draco.y;
+  const farGoal=goal && Number.isFinite(goal.x) && Math.hypot(
+    draco.x+draco.w/2-goal.x, draco.y+draco.h/2-goal.y)>35;
+  const chasingTarget=draco.mode==='chase' || draco.mode==='search';
+  if((!farGoal && !chasingTarget) || moved>=8) {draco.mpWatchStalls=0;return;}
+  draco.mpWatchStalls=(draco.mpWatchStalls||0)+age;
+  if(draco.mpWatchStalls<1.9)return;
+  draco.mpWatchStalls=0;
+  draco.mpWatchRecoveries=(draco.mpWatchRecoveries||0)+1;
+  draco._navTransit=null;
+  draco.navSurface=undefined;
+  draco._navFallback=null;
+  draco.climbing=false;
+  draco.ledgePull=0;
+  draco.mode='patrol';draco.suspicion=0;
+  draco.mpMemory=0;draco.mpSearchTimer=0;
+  draco.mpDisengageV12=3.4;
+  draco.mpPatrolTimer=4.5;
+  const face=draco.x<GAME.width/2 ? 1 : -1;
+  draco.mpPatrolX=clamp(draco.x+face*400,65,GAME.width-65);
+  if(!mpNavigator.recover(draco,draco.mpWatchRecoveries)) {
+    draco.face=face;draco.vx=face*110;
+    if(draco.onGround)draco.jumpBuffer=.17;
+  }
+}
+
 function mpBotWatchdog(p,dt,controls) {
   if(!p || !p.active || (p.mpType!=='bot' && p.mpType!=='remote') || p.hidden) return;
   p.aiWatchTimer=(p.aiWatchTimer||0)+dt;
@@ -3261,8 +3302,10 @@ function mpBotWatchdog(p,dt,controls) {
     (p.cargo>=2 && mpCurrentRelay()) ||
     state.vaults.some(v=>v.owner===null));
   // Even while waiting for the next drop, every bot gets a roaming objective.
+  const distantGoal=p.aiScoutGoal || (p.cargo>=2 ? mpCurrentRelay() : null);
+  const wantsMove=distantGoal && Math.abs((p.x+p.w/2)-distantGoal.x)>70;
   const intentional=Boolean(p._navTransit || controls.left || controls.right ||
-    p.aiScoutGoal || (hasObjective && p.aiTarget!==-1));
+    wantsMove || p.aiScoutGoal || (hasObjective && p.aiTarget!==-1));
   if(!intentional || moved>=10){p.aiFrozen=0;p.aiRecovery=0;return;}
   p.aiFrozen=(p.aiFrozen||0)+1.1;
   if(p.aiFrozen<2.2)return;
@@ -3272,7 +3315,7 @@ function mpBotWatchdog(p,dt,controls) {
   p.aiBlockedTarget=failedTarget;
   p.aiBlockedUntil=state.elapsed+8;
   p.aiTarget=-1;p.aiDecision=0;p.aiScoutGoal=null;p.aiScoutTimer=0;
-  p._navTransit=null;p.navSurface=undefined;
+  p._navTransit=null;p.navSurface=undefined;p._navFallback=null;
   p.vx=0;p.vy=0;p.climbing=false;
   if(!mpNavigator.recover(p,p.aiRecovery+p.mpIndex)){
     // Try a normal, physically simulated escape when no graph edge exists.
