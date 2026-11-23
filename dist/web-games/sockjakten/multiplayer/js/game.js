@@ -2591,7 +2591,7 @@ function mpRenderLobby(message=''){
     '<div class="mp-slots">'+seats.map(card).join('')+'</div>'+
     '<p class="mp-warning" id="mpLobbyMessage">'+mpEsc(message)+'</p>'+
     '<p class="mp-lobby-tip">'+(guest?'Everyone sees the same crew and room selection. The host starts the heist.':'Choose your crew. Friends can pick their own characters. The host starts the heist.')+'</p>'+
-    (guest ? '' : '<button id="mpProceed" class="btn btn-primary" type="button">CHOOSE ROOM</button>');
+    (guest ? '<button class="btn btn-primary" type="button" disabled aria-disabled="true">WAITING FOR HOST</button>' : '<button id="mpProceed" class="btn btn-primary" type="button">CHOOSE ROOM</button>');
   if(!guest){
     $('#mpHumans').onchange=e=>{mpLobby.humans=+e.target.value;mpLobby.bots=Math.min(mpLobby.bots,4-mpLobby.humans);mpRenderLobby();};
     $('#mpBots').onchange=e=>{mpLobby.bots=+e.target.value;if(host)online.send({type:'lobby-settings',bots:mpLobby.bots,difficulty:mpLobby.difficulty});mpRenderLobby();};
@@ -3543,6 +3543,9 @@ function mpOnlineUI() {
   status.textContent=online.message || (online.connected
     ? online.role==='host'?'DEDICATED ROOM '+online.room+' · '+online.roster.filter(p=>p.connected).length+'/4 connected · server runs the match':'CONNECTED · ROOM '+online.room+' · waiting for the host'
     : 'Local play works without an online server.');
+  const mySeat=online.roster.find(p=>p.slot===online.slot);
+  const onlineName=$('#mpOnlineName');
+  if(online.connected&&mySeat&&onlineName&&document.activeElement!==onlineName)onlineName.value=mySeat.name;
   const list=$('#mpOnlineRoster');
   list.textContent=online.roster.map(p=>p.name+(p.connected?'':' (offline)')+' · '+CHARACTERS[p.character]?.name).join('   |   ');
   $('#resumeBtn').disabled=online.role==='guest';

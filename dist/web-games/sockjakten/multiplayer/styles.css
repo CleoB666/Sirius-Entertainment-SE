@@ -1196,7 +1196,9 @@ body.mp-playing .game-shell {
 #mpOnlineInvite strong{color:#baffdd}
 #mpOnlineGuestOptions{display:flex;align-items:center;gap:12px;flex-wrap:wrap}
 #mpOnlineGuestOptions p{font-size:.85rem;color:#fff5d0}
-body.mp-online-guest #characterGrid{display:none!important}
+/* Guests must see the same crew cards and room settings as the host.
+   Permission differences are applied to individual controls, never the lobby. */
+body.mp-online-guest #characterGrid.mp-lobby{display:block!important}
 @media(max-width:700px){.mp-online-fields{grid-template-columns:1fr}.mp-online-box{padding:12px}.mp-online-buttons .btn{min-width:0;flex:1}}
 
 /* A single animated illustrated cast: the tongue anchors stay on the mouths. */
