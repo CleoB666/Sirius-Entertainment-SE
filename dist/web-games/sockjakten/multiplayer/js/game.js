@@ -238,12 +238,12 @@ function setupTongueCast() {
   // Mouth anchors measured on the 1672 × 941 source illustration.
   // Character mapping matters: Lairy is yellow (left); Clawster is orange (far right).
   const mouths = [
-    {label:'Strappy',asset:'strappy',x:383/1672,y:625/941,w:27,h:34},
-    {label:'Lairy',asset:'lairy',x:575/1672,y:748/941,w:23,h:28},
-    {label:'Trasselsudd',asset:'trasselsudd',x:820/1672,y:739/941,w:24,h:27},
-    {label:'Gramp',asset:'gramp',x:1101/1672,y:733/941,w:23,h:31},
-    {label:'Clawster',asset:'clawster',x:1424/1672,y:738/941,w:27,h:31},
-    {label:'Draco',asset:'draco',x:1090/1672,y:220/941,w:20,h:31},
+    {label:'Strappy',asset:'strappy',x:407/1672,y:642/941,w:17,h:24},
+    {label:'Lairy',asset:'lairy',x:603/1672,y:775/941,w:19,h:19},
+    {label:'Trasselsudd',asset:'trasselsudd',x:854/1672,y:742/941,w:18,h:22},
+    {label:'Gramp',asset:'gramp',x:1112/1672,y:738/941,w:15,h:18},
+    {label:'Clawster',asset:'clawster',x:1450/1672,y:712/941,w:18,h:23},
+    {label:'Draco',asset:'draco',x:1091/1672,y:226/941,w:14,h:20},
   ];
   const buttons = mouths.map((spot, index) => {
     const button = document.createElement('button');
@@ -254,7 +254,7 @@ function setupTongueCast() {
     button.title = 'Catch the cheeky tongue!';
     const tongue = document.createElement('img');
     tongue.className = 'cast-tongue-art';
-    tongue.src = 'assets/tongues/' + spot.asset + '.png';
+    tongue.src = 'assets/tongues-fit/' + spot.asset + '.png';
     tongue.alt = '';
     tongue.draggable = false;
     tongue.setAttribute('aria-hidden', 'true');
