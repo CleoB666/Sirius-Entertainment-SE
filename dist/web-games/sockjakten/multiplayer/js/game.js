@@ -229,99 +229,110 @@ function makeCharacterPortrait(id) {
 function setupTongueCast() {
   const mount = dom.startCast;
   mount.textContent = '';
+  const stage = document.createElement('div');
+  stage.className = 'start-cast-stage';
   const cast = document.createElement('img');
   cast.className = 'start-cast-image';
   cast.src = 'assets/crew-cast.png';
   cast.alt = '';
-  mount.append(cast);
-  // Mouth positions in the original image, left to right plus Draco.
-  // Mouth anchors measured on the 1672 × 941 source illustration.
-  // Character mapping matters: Lairy is yellow (left); Clawster is orange (far right).
-  const mouths = [
-    {label:'Strappy',asset:'strappy',x:408/1672,y:622/941,w:15,h:20},
-    {label:'Lairy',asset:'lairy',x:603/1672,y:761/941,w:17,h:17},
-    {label:'Trasselsudd',asset:'trasselsudd',x:854/1672,y:734/941,w:16,h:18},
-    {label:'Gramp',asset:'gramp',x:1114/1672,y:724/941,w:14,h:16},
-    {label:'Clawster',asset:'clawster',x:1451/1672,y:686/941,w:16,h:19},
-    {label:'Draco',asset:'draco',x:1091/1672,y:210/941,w:12,h:17},
-  ];
-  const buttons = mouths.map((spot, index) => {
-    const button = document.createElement('button');
-    button.type = 'button';
-    button.className = 'cast-tongue';
-    button.dataset.character = spot.asset;
-    button.setAttribute('aria-label', spot.label + ' is sticking out their tongue! Click for a group reaction.');
-    button.title = 'Catch the cheeky tongue!';
-    const tongue = document.createElement('img');
-    tongue.className = 'cast-tongue-art';
-    tongue.src = 'assets/tongues-fit/' + spot.asset + '.png';
-    tongue.alt = '';
-    tongue.draggable = false;
-    tongue.setAttribute('aria-hidden', 'true');
-    button.append(tongue);
-    button.addEventListener('click', (event) => {
-      event.stopPropagation();
-      if (!button.classList.contains('is-visible') || !mount.classList.contains('tongue-one')) return;
-      const now = performance.now();
-      state._tongueAllUntil = now + 2000;
-      state._tongueNextAt = now + 12000;
-      mount.classList.remove('tongue-one');
-      mount.classList.add('tongue-all');
-      buttons.forEach(b => b.classList.add('is-visible'));
-    });
-    mount.append(button);
-    return button;
+  cast.draggable = false;
+  stage.append(cast);
+  mount.append(stage);
+
+  // Three hand-composited facial states per character. Crops are in the
+  // crew-cast original pixel coordinates and share its animated stage.
+  // Slightly larger display boxes and a longer tongue hold improve readability
+  // and give the player enough time to click before the character resets.
+  const mouthFrames = [{"name":"strappy","x":367,"y":596,"w":74,"h":74},{"name":"lairy","x":558,"y":747,"w":68,"h":68},{"name":"trasselsudd","x":824,"y":710,"w":68,"h":68},{"name":"gramp","x":1098,"y":694,"w":74,"h":74},{"name":"clawster","x":1408,"y":675,"w":68,"h":68},{"name":"draco","x":1063,"y":179,"w":84,"h":84}];
+  const actors = mouthFrames.map((face) => {
+    const hit = document.createElement('button');
+    hit.className = 'mouth-sprite-hit';
+    hit.type = 'button';
+    hit.setAttribute('aria-label', face.name + ' sticks out their tongue');
+    hit.title = 'A cheeky little surprise!';
+    const art = document.createElement('img');
+    art.alt = '';
+    art.draggable = false;
+    art.className = 'mouth-sprite-art';
+    art.src = 'assets/mouth-sprites/' + face.name + '-closed.png';
+    hit.append(art);
+    stage.append(hit);
+    const pathPrefix = 'assets/mouth-sprites/' + face.name + '-';
+    for (const phase of ['closed','open','tongue']) {
+      const preload = new Image();
+      preload.src = pathPrefix + phase + '.png';
+    }
+    return {hit,art,pathPrefix};
   });
-  const layout = () => {
-    const w = mount.clientWidth, h = mount.clientHeight;
+  function layout() {
+    const w = stage.clientWidth, h = stage.clientHeight;
     if (!w || !h) return;
     const scale = Math.min(w / 1672, h / 941);
-    const left = w - 1672 * scale;
-    const top = h - 941 * scale;
-    mouths.forEach((spot, i) => {
-      buttons[i].style.left = Math.round(left + 1672 * scale * spot.x) + 'px';
-      buttons[i].style.top = Math.round(top + 941 * scale * spot.y) + 'px';
-      const image = buttons[i].querySelector('.cast-tongue-art');
-      image.style.width = Math.max(7, Math.round(spot.w * scale)) + 'px';
-      image.style.height = Math.max(9, Math.round(spot.h * scale)) + 'px';
-      buttons[i].style.width = image.style.width;
-      buttons[i].style.height = image.style.height;
+    const left = w - 1672 * scale, top = h - 941 * scale;
+    actors.forEach((item,i) => {
+      const face = mouthFrames[i];
+      item.hit.style.left = (left + face.x*scale) + 'px';
+      item.hit.style.top = (top + face.y*scale) + 'px';
+      item.hit.style.width = (face.w*scale) + 'px';
+      item.hit.style.height = (face.h*scale) + 'px';
     });
-  };
+  }
   if (typeof ResizeObserver !== 'undefined') new ResizeObserver(layout).observe(mount);
   else window.addEventListener('resize', layout);
   cast.addEventListener('load', layout);
+  requestAnimationFrame(layout);
+
+  let activeIndex = -1;
   let lastIndex = -1;
-  let menuWasVisible = false;
-  const resetVisual = () => {
-    mount.classList.remove('tongue-one', 'tongue-all');
-    buttons.forEach(button => button.classList.remove('is-visible'));
-  };
+  let sequenceTimers = [];
+  let nextAt = performance.now() + 10000;
+  function clearSequence() {
+    sequenceTimers.forEach(clearTimeout);
+    sequenceTimers = [];
+    activeIndex = -1;
+    actors.forEach(a => {
+      a.art.src = a.pathPrefix + 'closed.png';
+      a.hit.classList.remove('is-playing');
+    });
+  }
+  function cue(fn,delay) { sequenceTimers.push(setTimeout(fn,delay)); }
+  function play(indices) {
+    clearSequence();
+    for (const index of indices) {
+      const item = actors[index];
+      item.hit.classList.add('is-playing');
+      if (window.matchMedia?.('(prefers-reduced-motion: reduce)').matches) {
+        item.art.src = item.pathPrefix + 'tongue.png';
+      } else {
+        cue(() => item.art.src = item.pathPrefix + 'open.png', 120);
+        cue(() => item.art.src = item.pathPrefix + 'tongue.png', 300);
+        cue(() => item.art.src = item.pathPrefix + 'open.png', 1500);
+        cue(() => item.art.src = item.pathPrefix + 'closed.png', 1760);
+      }
+    }
+    cue(clearSequence, 2200);
+    nextAt = performance.now() + 10000;
+  }
+  actors.forEach((actor,i) => actor.hit.addEventListener('click', e => {
+    e.stopPropagation();
+    if (!actor.hit.classList.contains('is-playing')) return;
+    play(actors.map((_,n)=>n));
+  }));
   setInterval(() => {
-    const visible = state.screen === 'start' && !document.hidden && dom.rules.classList.contains('hidden');
+    const showing = state.screen === 'start' && !document.hidden && dom.rules.classList.contains('hidden');
+    if (!showing) {
+      if (activeIndex !== -1 || sequenceTimers.length) clearSequence();
+      nextAt = performance.now() + 10000;
+      return;
+    }
     const now = performance.now();
-    if (!visible) { if (menuWasVisible) resetVisual(); menuWasVisible = false; return; }
-    if (!menuWasVisible) { menuWasVisible = true; state._tongueNextAt = now + 10000; state._tongueAllUntil = 0; layout(); }
-    if (state._tongueAllUntil > 0) {
-      if (now < state._tongueAllUntil) return;
-      state._tongueAllUntil = 0;
-      resetVisual();
-    }
-    if (now >= state._tongueNextAt) {
-      let index = Math.floor(Math.random() * (lastIndex < 0 ? mouths.length : mouths.length - 1));
-      if (index >= lastIndex && lastIndex >= 0) index++;
-      lastIndex = index;
-      resetVisual();
-      mount.classList.add('tongue-one');
-      buttons[index].classList.add('is-visible');
-      state._tongueNextAt = now + 10000;
-      state._tongueOneUntil = now + 2000;
-    }
-    if (state._tongueOneUntil && now >= state._tongueOneUntil) {
-      state._tongueOneUntil = 0;
-      if (!state._tongueAllUntil) resetVisual();
-    }
-  }, 100);
+    if (now < nextAt) return;
+    let index = Math.floor(Math.random() * (mouthFrames.length - (lastIndex >= 0 ? 1 : 0)));
+    if (lastIndex >= 0 && index >= lastIndex) index++;
+    lastIndex = index;
+    activeIndex = index;
+    play([index]);
+  }, 120);
 }
 
 // Subtle walkable furniture seams, with a stronger local highlight near any thief.

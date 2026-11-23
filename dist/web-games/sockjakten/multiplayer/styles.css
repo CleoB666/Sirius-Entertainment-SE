@@ -1258,32 +1258,142 @@ body.mp-online-guest #characterGrid.mp-lobby{display:block!important}
 .start-cast .cast-tongue-art{width:100%;height:100%;object-fit:fill;}
 
 
-/* Final tongue calibration: shorter, higher and anchored at the lip line. */
+/* Mouth-registered cast animation. Uses the displayed art's own geometry. */
 .start-cast .cast-tongue {
-  transform:translateX(-50%);
+  transform:translateX(-50%) rotate(var(--mouth-angle, 0deg));
   transform-origin:50% 0%;
-  overflow:hidden;
-  border-radius:0 0 46% 46%;
-  filter:none;
+  padding:0;border:0;overflow:hidden;
+  border-radius:24% 24% 50% 50% / 8% 8% 44% 44%;
+  background:transparent;filter:none;
+}
+.start-cast .cast-tongue[data-character="draco"]::after {
+  content:"";position:absolute;z-index:2;
+  left:8%;top:0;width:84%;height:10%;
+  border-radius:50%;background:rgba(7,7,11,.84);
+  pointer-events:none;
 }
 .start-cast .cast-tongue-art {
-  display:block;
-  max-width:none;
-  width:100%;height:100%;
-  object-fit:fill;
-  transform-origin:50% 0%;
-  filter:drop-shadow(0 1px 1px rgba(20,8,15,.18));
+  display:block;width:100%;height:100%;max-width:none;
+  object-fit:fill;transform-origin:50% 0%;
+  filter:drop-shadow(0 1px 1px rgba(10,7,12,.2));
 }
 .start-cast .cast-tongue.is-visible .cast-tongue-art {
-  animation:mouthTonguePop .52s cubic-bezier(.2,.68,.2,1) both;
+  animation:castMouthRegisteredPop .66s cubic-bezier(.18,.68,.27,1) both;
 }
-@keyframes mouthTonguePop {
-  0%{transform:scaleY(.01)}
-  52%{transform:scaleY(.74)}
-  76%{transform:scaleY(1.00)}
-  100%{transform:scaleY(.96)}
+@keyframes castMouthRegisteredPop {
+  0%{transform:translateY(-4%) scaleY(.015)}
+  48%{transform:translateY(0) scaleY(.84)}
+  72%{transform:translateY(0) scaleY(1.04)}
+  100%{transform:translateY(0) scaleY(1)}
 }
 @media (prefers-reduced-motion:reduce){
- .start-cast .cast-tongue.is-visible .cast-tongue-art{animation:none}
+  .start-cast .cast-tongue.is-visible .cast-tongue-art{animation:none}
 }
-/* End final tongue calibration. */
+/* End mouth-registered animation. */
+
+/* TTHC mouth-stage registration v2: keep every lip anchor in the same transformed stage. */
+.start-cast .start-cast-stage {
+  position:relative;
+  display:block;
+  width:100%;
+  height:100%;
+  flex:0 0 100%;
+  transform-origin:right bottom;
+  animation:castBreathe 4.8s ease-in-out infinite alternate;
+  pointer-events:none;
+}
+.start-cast .start-cast-stage .start-cast-image {
+  display:block;
+  width:100%; height:100%;
+  object-fit:contain;
+  object-position:right bottom;
+  animation:none !important;
+}
+.start-cast .start-cast-stage .cast-tongue {
+  position:absolute;
+  z-index:8;
+  box-sizing:border-box;
+  transform:translate(-50%, -4%);
+  transform-origin:50% 0%;
+  display:flex;
+  align-items:flex-start;
+  justify-content:center;
+  min-width:0;
+  min-height:0;
+  padding:0;
+  margin:0;
+  border:0;
+  background:transparent;
+  overflow:visible;
+  filter:none;
+  opacity:0;
+  visibility:hidden;
+  pointer-events:none;
+}
+.start-cast.tongue-one .start-cast-stage .cast-tongue.is-visible,
+.start-cast.tongue-all .start-cast-stage .cast-tongue.is-visible {
+  opacity:1;
+  visibility:visible;
+}
+.start-cast.tongue-one .start-cast-stage .cast-tongue.is-visible {pointer-events:auto;}
+.start-cast .start-cast-stage .cast-tongue .cast-tongue-art,
+.start-cast .start-cast-stage .cast-tongue.is-visible .cast-tongue-art {
+  display:block;
+  width:100%; height:100%;
+  max-width:none;
+  object-fit:contain;
+  transform-origin:50% 0%;
+  animation:mouthTonguePop .58s cubic-bezier(.2,.7,.2,1) both;
+  filter:drop-shadow(0 1px 1px rgba(20,8,15,.3));
+}
+.start-cast.tongue-one .start-cast-stage .cast-tongue.is-visible::before {
+  display:none;
+  content:none;
+}
+@keyframes mouthTonguePop {
+  0% {transform:scaleY(.02)}
+  38% {transform:scaleY(.78)}
+  70% {transform:scaleY(1.05)}
+  100% {transform:scaleY(1)}
+}
+@media (prefers-reduced-motion:reduce) {
+  .start-cast .start-cast-stage {animation:none;}
+  .start-cast .start-cast-stage .cast-tongue.is-visible .cast-tongue-art {animation:none;}
+}
+/* End mouth-stage registration v2. */
+
+/* Character mouth sprite animation: 3 frame states per face. */
+.start-cast .start-cast-stage {
+  position:relative;
+  display:block;
+  width:100%;height:100%;flex:0 0 100%;
+  animation:castBreathe 4.8s ease-in-out infinite alternate;
+  transform-origin:right bottom;
+  pointer-events:none;
+}
+.start-cast .start-cast-stage > .start-cast-image {
+  display:block;width:100%;height:100%;object-fit:contain;
+  object-position:right bottom;animation:none!important;
+}
+.start-cast .mouth-sprite-hit {
+  position:absolute;display:block;z-index:8;
+  padding:0;margin:0;border:0;background:transparent;
+  box-sizing:border-box;overflow:visible;
+  opacity:0;visibility:hidden;pointer-events:none;
+  -webkit-tap-highlight-color:transparent;
+}
+.start-cast .mouth-sprite-hit.is-playing {
+  opacity:1;visibility:visible;pointer-events:auto;
+}
+.start-cast .mouth-sprite-art {
+  display:block;width:100%;height:100%;object-fit:fill;
+  max-width:none;transform:none!important;animation:none!important;
+  filter:none!important;
+}
+.start-cast .mouth-sprite-hit:focus-visible {
+  outline:2px solid #bceaff;outline-offset:3px;
+}
+@media (prefers-reduced-motion:reduce) {
+ .start-cast .start-cast-stage{animation:none!important;}
+}
+/* End character mouth sprite animation. */
