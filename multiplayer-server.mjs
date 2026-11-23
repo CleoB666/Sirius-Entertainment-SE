@@ -27,7 +27,7 @@ function send(peer,payload){
 function frame(peer,op,payload=Buffer.alloc(0)){if(peer.socket.destroyed)return;peer.socket.write(Buffer.concat([Buffer.from([0x80|op,payload.length]),payload]));}
 function emit(room,packet){for(const seat of room.seats.values())if(seat.peer)send(seat.peer,packet);}
 function roster(room){return [...room.seats.values()].sort((a,b)=>a.slot-b.slot).map(s=>({slot:s.slot,name:s.name,character:s.character,connected:!!s.peer&&!s.peer.closed,leader:s.slot===room.ownerSlot}));}
-function status(room){emit(room,{type:'roster',room:room.code,phase:room.phase,players:roster(room),leaderSlot:room.ownerSlot});}
+function status(room){const active=[...room.seats.values()].filter(s=>s.peer&&!s.peer.closed).length;room.bots=Math.min(room.bots,4-active);emit(room,{type:'roster',room:room.code,phase:room.phase,players:roster(room),leaderSlot:room.ownerSlot,lobby:{bots:room.bots,difficulty:room.difficulty,stage:room.lobbyStage||'select',levelIndex:room.levelIndex}});}
 function welcome(room,seat){send(seat.peer,{type:'welcome',role:room.ownerSlot===seat.slot?'host':'guest',room:room.code,slot:seat.slot,token:seat.token,phase:room.phase});status(room);
   if(room.match){send(seat.peer,{type:'start',levelIndex:room.match.state.levelIndex});send(seat.peer,{type:'snapshot',state:room.match.snapshot()});
     if(room.phase==='finished')send(seat.peer,{type:'finish',result:{reason:room.match.state.reason,final:room.match.snapshot()}});
@@ -54,7 +54,7 @@ function handle(peer,p){
     if(p.type==='host'){
       if(rooms.size>=MAX_ROOMS)return error(peer,'Server busy. Please try again.');
       let code=roomCode();while(rooms.has(code))code=roomCode();
-      const room={code,phase:'waiting',created:Date.now(),seats:new Map(),ownerSlot:0,match:null,bots:0,difficulty:'normal',levelIndex:0};
+      const room={code,phase:'waiting',created:Date.now(),seats:new Map(),ownerSlot:0,match:null,bots:0,difficulty:'normal',levelIndex:0,lobbyStage:'select'};
       const seat={room,slot:0,name:nameOf(p.name,'HOST'),character:charOf(p.character),token:secureToken(),peer:null};
       room.seats.set(0,seat);rooms.set(code,room);connectSeat(peer,room,seat);return;
     }
@@ -84,6 +84,25 @@ function handle(peer,p){
     room.match.input(seat.slot,controls,actions);return;
   }
   if(seat.slot!==room.ownerSlot)return;
+  // Lobby presentation and options are authoritative and broadcast to every seat.
+  if(p.type==='lobby-settings' && room.phase==='waiting'){
+    const bots=Number(p.bots);
+    if(Number.isInteger(bots)&&bots>=0&&bots<=3){
+      const active=[...room.seats.values()].filter(s=>s.peer&&!s.peer.closed).length;
+      room.bots=Math.min(bots,4-active);
+    }
+    if(['easy','normal','hard'].includes(p.difficulty))room.difficulty=p.difficulty;
+    status(room);return;
+  }
+  if(p.type==='lobby-stage' && room.phase==='waiting'){
+    if(!['select','levels','briefing'].includes(p.stage))return;
+    if(p.stage==='briefing'){
+      const index=Number(p.levelIndex);
+      if(!Number.isInteger(index)||index<0||index>3)return;
+      room.levelIndex=index;
+    }
+    room.lobbyStage=p.stage;status(room);return;
+  }
   if(p.type==='start' && (room.phase==='waiting'||room.phase==='finished')){
     const levelIndex=Number(p.levelIndex),bots=Number(p.bots),difficulty=p.difficulty;
     if(!Number.isInteger(levelIndex)||levelIndex<0||levelIndex>3)return error(peer,'Invalid room selection.');
@@ -97,7 +116,7 @@ function handle(peer,p){
       const next=[...validChars].find(id=>!used.has(id))||[...validChars][i%5];used.add(next);
       participants.push({slot:-1,character:next,name:`BOT ${i+1}`,bot:true});
     }
-    room.match=createMatch({levelIndex,participants,difficulty});room.phase='playing';room.bots=bots;
+    room.match=createMatch({levelIndex,participants,difficulty});room.phase='playing';room.bots=bots;room.difficulty=difficulty;room.levelIndex=levelIndex;room.lobbyStage='playing';
     emit(room,{type:'start',levelIndex});status(room);emit(room,{type:'snapshot',state:room.match.snapshot()});return;
   }
   if(p.type==='pause' && room.phase==='playing'){room.match.state.paused=true;emit(room,{type:'pause'});return;}

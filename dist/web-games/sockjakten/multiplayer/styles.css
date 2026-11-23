@@ -1199,30 +1199,36 @@ body.mp-playing .game-shell {
 body.mp-online-guest #characterGrid{display:none!important}
 @media(max-width:700px){.mp-online-fields{grid-template-columns:1fr}.mp-online-box{padding:12px}.mp-online-buttons .btn{min-width:0;flex:1}}
 
-/* Cast easter egg v11: individually illustrated, mouth-aligned tongue artwork. */
-.start-cast .start-cast-image { pointer-events:none; }
+/* A single animated illustrated cast: the tongue anchors stay on the mouths. */
+.start-cast { animation:castBreathe 4.8s ease-in-out infinite alternate; }
+.start-cast .start-cast-image { pointer-events:none;animation:none; }
 .start-cast .cast-tongue {
-  position:absolute; z-index:8; display:flex; align-items:flex-start; justify-content:center;
-  box-sizing:border-box; transform:translate(-50%,-6%);
-  width:40px; height:48px; padding:0; border:0; border-radius:44%;
-  background:transparent; opacity:0; visibility:hidden; pointer-events:none; cursor:pointer;
-  -webkit-tap-highlight-color:transparent; transition:opacity .09s linear;
+  position:absolute;z-index:8;display:block;box-sizing:border-box;
+  transform:translate(-50%,-2px);padding:0;border:0;
+  background:transparent;opacity:0;visibility:hidden;pointer-events:none;
+  cursor:pointer;overflow:hidden;border-radius:0 0 45% 45%;
+  -webkit-tap-highlight-color:transparent;
 }
 .start-cast.tongue-one .cast-tongue.is-visible,
-.start-cast.tongue-all .cast-tongue.is-visible { opacity:1; visibility:visible; }
-.start-cast.tongue-one .cast-tongue.is-visible { pointer-events:auto; }
+.start-cast.tongue-all .cast-tongue.is-visible {opacity:1;visibility:visible;}
+.start-cast.tongue-one .cast-tongue.is-visible {pointer-events:auto;}
 .cast-tongue-art {
-  display:block; object-fit:fill; width:19px; height:26px;
-  filter:drop-shadow(0 1px 1px rgba(21,6,13,.72));
-  transform-origin:50% 12%; animation:castTongueNatural .46s ease-in-out infinite alternate;
+  display:block;object-fit:contain;max-width:100%;height:100%;
+  filter:drop-shadow(0 1px 1px rgba(27,8,17,.46));
+  transform-origin:50% 0%;
 }
-.start-cast.tongue-one .cast-tongue.is-visible::before {
-  content:''; position:absolute; inset:3px 7px 4px;
-  border-radius:50%; border:1px solid rgba(255,196,209,.54);
-  box-shadow:0 0 10px rgba(251,153,177,.5); pointer-events:none;
-  animation:castTongueHalo 1s ease-in-out infinite alternate;
+.cast-tongue.is-visible .cast-tongue-art {
+  animation:castTongueEmerge .63s cubic-bezier(.18,.75,.35,1.04) both;
 }
-.start-cast .cast-tongue:focus-visible { outline:2px solid #bceaff; outline-offset:3px; }
-@keyframes castTongueNatural { from { transform:rotate(-3deg) translateY(0); } to { transform:rotate(3deg) translateY(2px); } }
-@keyframes castTongueHalo { to { box-shadow:0 0 14px rgba(251,153,177,.7); opacity:.56; } }
-@media (prefers-reduced-motion:reduce) { .cast-tongue-art,.start-cast.tongue-one .cast-tongue.is-visible::before {animation:none;} }
+@keyframes castTongueEmerge {
+  0% {transform:translateY(-91%) scaleY(.65);}
+  45% {transform:translateY(-12%) scaleY(.93);}
+  78% {transform:translateY(1px) scaleY(1.02);}
+  100% {transform:translateY(0) scaleY(1);}
+}
+.start-cast .cast-tongue:focus-visible {outline:2px solid #dbe8ff;outline-offset:2px;}
+@media (prefers-reduced-motion:reduce) {
+  .start-cast {animation:none;}
+  .cast-tongue.is-visible .cast-tongue-art {animation:none;}
+}
+ }

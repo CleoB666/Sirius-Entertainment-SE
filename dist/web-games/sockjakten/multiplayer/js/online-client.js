@@ -1,7 +1,7 @@
 /** TTHC dedicated multiplayer client. This module NEVER simulates a match. */
 export function createOnlineClient({onEvent,onChange}) {
   const state={role:'local',connected:false,phase:'waiting',room:'',slot:0,token:'',server:'',name:'',character:'clawster',
-    roster:[],message:'',socket:null,manualClose:false,reconnectAttempts:0,pendingActions:[],
+    roster:[],lobby:{bots:0,difficulty:'normal',stage:'select',levelIndex:0},message:'',socket:null,manualClose:false,reconnectAttempts:0,pendingActions:[],
     lastSnapshotAt:0,reconnectTimer:null};
   const publish=()=>onChange(state);
   function send(message){if(state.socket?.readyState!==WebSocket.OPEN)return false;try{state.socket.send(JSON.stringify(message));return true;}catch{return false;}}
@@ -35,6 +35,7 @@ export function createOnlineClient({onEvent,onChange}) {
         state.role=p.role;state.message='You are now the room leader. The server continues running the match.';
       }else if(p.type==='roster'){
         state.roster=Array.isArray(p.players)?p.players:[];state.phase=p.phase||'waiting';
+        if(p.lobby&&typeof p.lobby==='object')state.lobby={...state.lobby,...p.lobby};
         const me=state.roster.find(x=>x.slot===state.slot);
         if(me&&me.leader)state.role='host';else if(me)state.role='guest';
       }else if(p.type==='start')state.phase='playing';

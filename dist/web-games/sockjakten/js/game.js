@@ -195,11 +195,11 @@ function setupTongueCast() {
   // Mouth positions in the original image, left to right plus Draco.
   const mouths = [
     {label:'Strappy',    asset:'strappy',    x:387/1672,  y:632/941, w:32, h:39},
-    {label:'Clawster',   asset:'clawster',   x:596/1672,  y:772/941, w:28, h:29},
+    {label:'Clawster',   asset:'clawster',   x:573/1672,  y:769/941, w:28, h:29},
     {label:'Trasselsudd',asset:'trasselsudd',x:829/1672,  y:733/941, w:24, h:25},
-    {label:'Gramp',      asset:'gramp',      x:1104/1672, y:740/941, w:30, h:35},
-    {label:'Lairy',      asset:'lairy',      x:1422/1672, y:736/941, w:24, h:25},
-    {label:'Draco',      asset:'draco',      x:1104/1672, y:220/941, w:31, h:43},
+    {label:'Gramp',      asset:'gramp',      x:1109/1672, y:724/941, w:30, h:35},
+    {label:'Lairy',      asset:'lairy',      x:1420/1672, y:737/941, w:24, h:25},
+    {label:'Draco',      asset:'draco',      x:1109/1672, y:223/941, w:31, h:43},
   ];
   const buttons = mouths.map((spot, index) => {
     const button = document.createElement('button');
@@ -240,6 +240,8 @@ function setupTongueCast() {
       const image = buttons[i].querySelector('.cast-tongue-art');
       image.style.width = Math.max(7, Math.round(spot.w * scale)) + 'px';
       image.style.height = Math.max(9, Math.round(spot.h * scale)) + 'px';
+      buttons[i].style.width = image.style.width;
+      buttons[i].style.height = image.style.height;
     });
   };
   if (typeof ResizeObserver !== 'undefined') new ResizeObserver(layout).observe(mount);

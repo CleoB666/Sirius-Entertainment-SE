@@ -59,7 +59,7 @@ const MP_KEYMAPS_V4 = [
   {left:'ArrowLeft',right:'ArrowRight',up:'ArrowUp',down:'ArrowDown',hide:'ShiftRight',ability:'ControlRight',vault:'Enter',stash:'Backspace'}
 ];
 const MP_ALL_KEYS_V4 = new Set(MP_KEYMAPS_V4.flatMap(map=>Object.values(map)));
-function mpKeyLegendV4(n){const map=MP_KEYMAPS_V4[n];return 'P'+(n+1)+': '+[map.left,map.right,map.up,map.down,map.hide,map.ability,map.vault,map.stash].map(s=>s.replace(/^Key/,'').replace(/^Arrow/,'').replace(/Right$/,' Rt')).join(' / ')}
+function mpKeyLegendV4(n){const map=MP_KEYMAPS_V4[n];return 'P'+(n+1)+': '+[map.left,map.right,map.up,map.down,map.hide,map.ability,map.vault,map.stash].map(s=>s.replace(/^Key/,'').replace(/^Arrow/,'').replace(/Right$/,' Rt')).join(' / ')+(n===0?' · Space: Jump':'')}
 
 const keys = new Set();
 const touchKeys = new Set();
@@ -237,11 +237,11 @@ function setupTongueCast() {
   // Mouth positions in the original image, left to right plus Draco.
   const mouths = [
     {label:'Strappy',    asset:'strappy',    x:387/1672,  y:632/941, w:32, h:39},
-    {label:'Clawster',   asset:'clawster',   x:596/1672,  y:772/941, w:28, h:29},
+    {label:'Clawster',   asset:'clawster',   x:573/1672,  y:769/941, w:28, h:29},
     {label:'Trasselsudd',asset:'trasselsudd',x:829/1672,  y:733/941, w:24, h:25},
-    {label:'Gramp',      asset:'gramp',      x:1104/1672, y:740/941, w:30, h:35},
-    {label:'Lairy',      asset:'lairy',      x:1422/1672, y:736/941, w:24, h:25},
-    {label:'Draco',      asset:'draco',      x:1104/1672, y:220/941, w:31, h:43},
+    {label:'Gramp',      asset:'gramp',      x:1109/1672, y:724/941, w:30, h:35},
+    {label:'Lairy',      asset:'lairy',      x:1420/1672, y:737/941, w:24, h:25},
+    {label:'Draco',      asset:'draco',      x:1109/1672, y:223/941, w:31, h:43},
   ];
   const buttons = mouths.map((spot, index) => {
     const button = document.createElement('button');
@@ -282,6 +282,8 @@ function setupTongueCast() {
       const image = buttons[i].querySelector('.cast-tongue-art');
       image.style.width = Math.max(7, Math.round(spot.w * scale)) + 'px';
       image.style.height = Math.max(9, Math.round(spot.h * scale)) + 'px';
+      buttons[i].style.width = image.style.width;
+      buttons[i].style.height = image.style.height;
     });
   };
   if (typeof ResizeObserver !== 'undefined') new ResizeObserver(layout).observe(mount);
@@ -471,7 +473,7 @@ function buildLevelCards() {
   const unlocked = getProgress(); dom.levelGrid.textContent = "";
   LEVELS.forEach((level, index) => {
     const card = document.createElement("button"); card.type = "button"; card.className = "level-card";
-    card.disabled = false; // Every room is selectable for an independent multiplayer match.
+    card.disabled = online.connected && online.role==='guest'; // Guests see the same rooms; the host selects.
     const sockCount = guardSockLayout(level).length;
     const guardGoal = state.selectedId === "draco" ? `<span class="level-guard-goal">${sockCount} SOCK${sockCount === 1 ? "" : "S"} TO PROTECT · ${level.catches} THIEVES</span>` : "";
     card.innerHTML = `<span class="level-visual"></span><span class="level-card-content"><small>LEVEL ${level.number}</small><h3>${level.name}</h3><p>${level.tagline}</p>${guardGoal}</span>`;
@@ -481,6 +483,8 @@ function buildLevelCards() {
 }
 
 function prepareLevel(index) {
+  if(online.connected && online.role==='guest')return;
+  if(online.connected && online.role==='host')online.send({type:'lobby-stage',stage:'briefing',levelIndex:index});
   state.levelIndex=index;
   const level=LEVELS[index];
   $('#briefingNumber').textContent='ROOM '+(index+1)+' OF '+LEVELS.length;
@@ -2325,7 +2329,7 @@ function finishLevel(success, reason='') {
   showScreen('result');
 }
 
-function goToLevels() { if(online.role==='host'&&online.connected)online.send({type:'abort'}); if(online.role==='guest'){online.disconnect();showScreen('select');mpRenderLobby();return;} state.running = false; state.paused = false; setGameChrome(false); buildLevelCards(); showScreen("levels"); }
+function goToLevels() { if(online.role==='host'&&online.connected)online.send({type:'lobby-stage',stage:'levels'}); if(online.role==='guest'){online.disconnect();showScreen('select');mpRenderLobby();return;} state.running = false; state.paused = false; setGameChrome(false); buildLevelCards(); showScreen("levels"); }
 function pauseGame() { if (!state.running) return; if(online.role==='guest'){showHint('Only the host can pause this match.',2);return;} if(online.role==='host'&&online.connected)online.send({type:'pause'}); state.paused = true; keys.clear(); touchKeys.clear(); screens.pause.classList.add("active"); syncAudioForContext(); }
 function resumeGame() { if (!state.running) return; if(online.role==='guest')return; if(online.role==='host'&&online.connected)online.send({type:'resume'}); state.paused = false; screens.pause.classList.remove("active"); state.screen = "game"; lastFrame = performance.now(); syncAudioForContext(); }
 function openRules() {
@@ -2487,7 +2491,7 @@ function bindEvents() {
   window.addEventListener('keydown',event=>{
     const tag=event.target?.tagName;
     if(tag==='INPUT'||tag==='SELECT'||tag==='TEXTAREA')return;
-    if(state.running && (MP_ALL_KEYS_V4.has(event.code)||event.code==='Escape'||event.code==='KeyP'||event.code==='KeyM'))event.preventDefault();
+    if(state.running && (MP_ALL_KEYS_V4.has(event.code)||event.code==='Space'||event.code==='Escape'||event.code==='KeyP'||event.code==='KeyM'))event.preventDefault();
     keys.add(event.code);
     if(event.repeat)return;
     if(online.connected && online.role==='guest' && (event.code==='Escape'||event.code==='KeyP')){showHint('The host controls pause. You can keep playing.',2);return;}
@@ -2516,7 +2520,7 @@ function bindEvents() {
       else if(event.code===map.stash)mpStash(p);
     }
   });
-  
+
 window.addEventListener('keyup',e=>keys.delete(e.code));
   window.addEventListener('blur',()=>{keys.clear();if(online.connected)online.sendInput({left:false,right:false,up:false,down:false,jumpHeld:false});});
   document.addEventListener('visibilitychange',()=>{if(document.hidden && online.role==='local'&&state.running&&!state.paused)pauseGame();});
@@ -2539,15 +2543,16 @@ const mpLobby={ humans:1,bots:3,difficulty:'normal',choices:['clawster','lairy',
 function mpEsc(value){return String(value??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));}
 function mpLobbySlots(){
   if(online.role==='host'){
-    const guests=online.roster.filter(p=>p.slot!==online.slot && p.connected).sort((a,b)=>a.slot-b.slot);
-    const self=online.roster.find(p=>p.slot===online.slot);
-    const chosen=mpLobby.choices[0];
-    const players=[{type:'human',character:chosen,name:self?.name || mpLobby.names[0],remoteSlot:online.slot},
-      ...guests.map(p=>({type:'remote',character:p.character,remoteSlot:p.slot,name:p.name}))];
+    const players=online.roster.filter(p=>p.connected).sort((a,b)=>a.slot-b.slot).map(p=>({type:p.slot===online.slot?'human':'remote',character:p.character,remoteSlot:p.slot,name:p.name}));
     const used=new Set(players.map(p=>p.character));
     const unused=THIEF_IDS.filter(id=>!used.has(id));
     const bots=Array.from({length:mpLobby.bots},(_,i)=>({type:'bot',character:unused[i%unused.length]||THIEF_IDS[i%THIEF_IDS.length],name:'BOT '+(i+1)}));
     return [...players,...bots].slice(0,4);
+  }
+  if(online.connected && online.role==='guest'){
+    const players=online.roster.filter(p=>p.connected).sort((a,b)=>a.slot-b.slot).map(p=>({type:'remote',character:p.character,name:p.name,remoteSlot:p.slot}));
+    const used=new Set(players.map(p=>p.character));const available=THIEF_IDS.filter(id=>!used.has(id));
+    return [...players,...Array.from({length:mpLobby.bots},(_,i)=>({type:'bot',character:available[i%available.length]||THIEF_IDS[i%THIEF_IDS.length],name:'BOT '+(i+1)}))].slice(0,4);
   }
   const count=mpLobby.humans+mpLobby.bots;
   const used=new Set(mpLobby.choices.slice(0,mpLobby.humans));
@@ -2561,41 +2566,36 @@ function mpRenderLobby(message=''){
   heading.innerHTML='<p class="overline">REAL-TIME MULTIPLAYER</p><h2>BUILD YOUR HEIST CREW</h2><p>Choose your thief and nickname. Race friends and bots while Draco guards the room.</p>';
   const guest=online.connected&&online.role==='guest';
   const host=online.connected&&online.role==='host';
-  if(host)mpLobby.humans=online.roster.filter(p=>p.connected).length;
-  if(!guest)mpLobby.bots=Math.min(mpLobby.bots,4-mpLobby.humans);
+  if(host||guest){mpLobby.humans=online.roster.filter(p=>p.connected).length;mpLobby.bots=Math.min(online.lobby.bots,4-mpLobby.humans);mpLobby.difficulty=online.lobby.difficulty;}
+  else mpLobby.bots=Math.min(mpLobby.bots,4-mpLobby.humans);
   const maxBots=4-mpLobby.humans;
-  const seats=guest
-    ? online.roster.filter(p=>p.connected).sort((a,b)=>a.slot-b.slot).map(p=>({
-        type:p.slot===online.slot?'human':'remote',character:p.character,name:p.name,remoteSlot:p.slot
-      }))
-    : mpLobbySlots();
+  const seats=mpLobbySlots();
   const choices=THIEF_IDS;
   const card=(seat,i)=>{
-    const own=guest ? seat.remoteSlot===online.slot : seat.type==='human';
+    const own=(host||guest) ? seat.remoteSlot===online.slot : seat.type==='human';
     const label=seat.type==='bot'?'BOT '+(i+1):'PLAYER '+(i+1)+(seat.type==='remote'?' · ONLINE':'');
     const char=CHARACTERS[seat.character]||CHARACTERS.clawster;
     const name=mpEsc(seat.name||label);
     return '<article class="mp-slot '+(own?'mp-slot-own':'mp-slot-view')+'">'+
       '<span class="mp-slot-header">'+label+'</span><img src="'+char.portraitAsset+'" alt="'+mpEsc(char.name)+' portrait">'+
-      (own ? '<label>YOUR NICKNAME<input maxlength="18" data-mp-name="'+i+'" value="'+name+'" autocomplete="off" spellcheck="false"></label>'+ 
+      (own ? '<label>YOUR NICKNAME<input maxlength="18" data-mp-name="'+i+'" value="'+name+'" autocomplete="off" spellcheck="false"></label>'+
         '<label>YOUR CHARACTER<select data-mp-player="'+i+'">'+choices.map(id=>'<option value="'+id+'" '+(id===seat.character?'selected':'')+'>'+CHARACTERS[id].name+'</option>').join('')+'</select></label>'
         : '<strong>'+name+'</strong><span>'+char.name+'</span>')+'</article>';
   };
   dom.characterGrid.className='mp-lobby';
-  const settings=guest
-    ? '<div class="mp-lobby-readonly">YOUR ONLINE ROOM · Only change your own nickname and character. The room leader chooses the number of bots and the room.</div>'
-    : '<div class="mp-lobby-settings"><label>Human players<select id="mpHumans" '+(host?'disabled':'')+'>'+[1,2,3,4].map(n=>'<option '+(n===mpLobby.humans?'selected':'')+'>'+n+'</option>').join('')+'</select></label>'+ 
-      '<label>Bot players<select id="mpBots">'+Array.from({length:maxBots+1},(_,n)=>'<option '+(n===mpLobby.bots?'selected':'')+'>'+n+'</option>').join('')+'</select></label>'+ 
-      '<label>Bot difficulty<select id="mpDifficulty">'+['easy','normal','hard'].map(d=>'<option '+(d===mpLobby.difficulty?'selected':'')+'>'+d.toUpperCase()+'</option>').join('')+'</select></label></div>';
+  const locked=guest?'disabled':'';
+  const settings='<div class="mp-lobby-settings"><label>Human players<select id="mpHumans" '+(host||guest?'disabled':'')+'>'+[1,2,3,4].map(n=>'<option '+(n===mpLobby.humans?'selected':'')+'>'+n+'</option>').join('')+'</select></label>'+
+    '<label>Bot players<select id="mpBots" '+locked+'>'+Array.from({length:maxBots+1},(_,n)=>'<option '+(n===mpLobby.bots?'selected':'')+'>'+n+'</option>').join('')+'</select></label>'+
+    '<label>Bot difficulty<select id="mpDifficulty" '+locked+'>'+['easy','normal','hard'].map(d=>'<option '+(d===mpLobby.difficulty?'selected':'')+'>'+d.toUpperCase()+'</option>').join('')+'</select></label></div>';
   dom.characterGrid.innerHTML=settings+
-    '<div class="mp-slots">'+seats.map(card).join('')+'</div>'+ 
-    '<p class="mp-warning" id="mpLobbyMessage">'+mpEsc(message)+'</p>'+ 
-    '<p class="mp-lobby-tip">'+(guest?'Waiting for the room leader. You have the same character selection as Player 1.':'Each human chooses a nickname and character. Bots fill the remaining slots. Everyone keeps their own controls.')+'</p>'+ 
+    '<div class="mp-slots">'+seats.map(card).join('')+'</div>'+
+    '<p class="mp-warning" id="mpLobbyMessage">'+mpEsc(message)+'</p>'+
+    '<p class="mp-lobby-tip">'+(guest?'Everyone sees the same crew and room selection. The host starts the heist.':'Choose your crew. Friends can pick their own characters. The host starts the heist.')+'</p>'+
     (guest ? '' : '<button id="mpProceed" class="btn btn-primary" type="button">CHOOSE ROOM</button>');
   if(!guest){
     $('#mpHumans').onchange=e=>{mpLobby.humans=+e.target.value;mpLobby.bots=Math.min(mpLobby.bots,4-mpLobby.humans);mpRenderLobby();};
-    $('#mpBots').onchange=e=>{mpLobby.bots=+e.target.value;mpRenderLobby();};
-    $('#mpDifficulty').onchange=e=>{mpLobby.difficulty=e.target.value;mpRenderLobby();};
+    $('#mpBots').onchange=e=>{mpLobby.bots=+e.target.value;if(host)online.send({type:'lobby-settings',bots:mpLobby.bots,difficulty:mpLobby.difficulty});mpRenderLobby();};
+    $('#mpDifficulty').onchange=e=>{mpLobby.difficulty=e.target.value;if(host)online.send({type:'lobby-settings',bots:mpLobby.bots,difficulty:mpLobby.difficulty});mpRenderLobby();};
   }
   dom.characterGrid.querySelectorAll('[data-mp-name]').forEach(input=>input.addEventListener('change',e=>{
     const index=+e.target.dataset.mpName;
@@ -2617,6 +2617,8 @@ function mpRenderLobby(message=''){
     state.selectedId=slots[0].character;
     $('#chosenRole').textContent='HEIST CIRCUIT';
     $('#chosenSummary').textContent=mpLobby.humans+' human(s) and '+mpLobby.bots+' bot(s) · '+mpLobby.difficulty+' bots';
+    if(host)online.send({type:'lobby-stage',stage:'levels'});
+    $('#playLevelBtn').disabled=false;$('#playLevelBtn').textContent='START HEIST';
     buildLevelCards();showScreen('levels');
   };
 }
@@ -2629,7 +2631,8 @@ function mpControls(p){
   const map=MP_KEYMAPS_V4[p.mpIndex];
   if(!map)return {left:false,right:false,up:false,down:false,jumpHeld:false};
   const value=key=>keys.has(map[key]) || (p.mpIndex===0 && touchKeys.has(key));
-  const controls={left:value('left'),right:value('right'),up:value('up'),down:value('down'),jumpHeld:value('up')};
+  const jump=value('up')||(p.mpIndex===0&&keys.has('Space'));
+  const controls={left:value('left'),right:value('right'),up:jump,down:value('down'),jumpHeld:jump};
   // Gamepads are OPTIONAL for any player and do not take away the keyboard.
   const pads=navigator.getGamepads?.()||[];
   const pad=pads[p.mpIndex]||null;
@@ -3459,7 +3462,31 @@ function mpReceiveSnapshot(snapshot) {
   online.lastSnapshotAt=performance.now();
 }
 function mpOnlineHandle(packet) {
+  if(packet.type==='welcome'&&online.role==='host'){online.send({type:'lobby-settings',bots:Math.min(mpLobby.bots,3),difficulty:mpLobby.difficulty});}
   if(packet.type==='roster'){
+    if(online.connected){
+      mpLobby.humans=online.roster.filter(p=>p.connected).length;
+      mpLobby.bots=online.lobby.bots;mpLobby.difficulty=online.lobby.difficulty;
+      if(online.role==='guest' && online.phase==='waiting'){
+        const stage=online.lobby.stage;
+        if(stage==='levels' && state.screen!=='levels'){
+          $('#chosenRole').textContent='HEIST CIRCUIT';
+          $('#chosenSummary').textContent=mpLobby.humans+' human(s) and '+mpLobby.bots+' bot(s) · '+mpLobby.difficulty+' bots';
+          buildLevelCards();showScreen('levels');
+        }
+        else if(stage==='briefing' && state.screen!=='briefing'){
+          const idx=online.lobby.levelIndex;
+          state.levelIndex=idx;const level=LEVELS[idx];
+          $('#briefingNumber').textContent='ROOM '+(idx+1)+' OF '+LEVELS.length;
+          $('#briefingEyebrow').textContent=level.name;$('#briefingTitle').textContent=level.title;
+          $('#briefingStory').textContent='Collect socks, then chase the moving RELAY DROP to cash in your bag. Compete for Tools and trigger gold jackpots while Draco hunts the room.';
+          $('#briefingMission').textContent='HEIST CIRCUIT: deliver 2–4 socks to the glowing Relay Drop using your JACKPOT/USE key. It moves every 23 seconds! Socks return every 24 seconds; Tools every 34 seconds.';
+          $('#briefingAbility').textContent='Carried socks are lost when Draco catches you. Choose: bank your bag at the Relay, spend 2 Tools on a shared gold jackpot, or spend 1 Tool to secure points at a hiding spot. Three lives each.';
+          $('#playLevelBtn').disabled=true;$('#playLevelBtn').textContent='WAITING FOR HOST';
+          showScreen('briefing');
+        }else if(stage==='select' && state.screen!=='select'){showScreen('select');mpRenderLobby();}
+      }
+    }
     if(state.screen==='select')mpRenderLobby();
     return;
   }
@@ -3509,8 +3536,8 @@ function mpOnlineUI() {
   $('#mpOnlineHost').disabled=busy;
   $('#mpOnlineJoin').disabled=busy;
   $('#mpOnlineLeave').hidden=!busy;
-  $('#mpOnlineGuestOptions').hidden=online.role!=='guest';
-  $('#mpOnlineInvite').hidden=!(online.role==='host'&&online.connected);
+  $('#mpOnlineGuestOptions').hidden=true; // Character choice lives in the shared lobby.
+  $('#mpOnlineInvite').hidden=!online.connected;
   $('#mpOnlineCode').textContent=online.room;
   document.body.classList.toggle('mp-online-guest',online.role==='guest');
   status.textContent=online.message || (online.connected
@@ -3564,11 +3591,12 @@ setInterval(()=>{
   if(online.connected&&state.running&&!state.paused){
     const map=MP_KEYMAPS_V4[0];
     const value=key=>keys.has(map[key])||touchKeys.has(key);
-    const up=value('up') || touchKeys.has('jump');
+    const up=value('up') || keys.has('Space') || touchKeys.has('jump');
     online.sendInput({left:value('left'),right:value('right'),up,down:value('down'),jumpHeld:up});
   }
 },50);
 
 bindEvents(); syncAudioForContext(); requestAnimationFrame(frame);
 mpOnlineSetup();
+document.addEventListener('click',event=>{const back=event.target.closest?.('[data-back]');if(!back||online.role!=='host'||!online.connected||online.phase!=='waiting')return;const target=back.dataset.back;if(target==='select'||target==='levels')online.send({type:'lobby-stage',stage:target});});
 loadAssets().catch((error) => { console.error(error); $("#loadingScreen p").textContent = "Something went wrong while loading the images. Start the page with VS Code Live Server."; });
