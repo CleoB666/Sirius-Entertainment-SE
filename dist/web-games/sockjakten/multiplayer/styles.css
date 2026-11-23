@@ -1257,30 +1257,32 @@ body.mp-online-guest #characterGrid.mp-lobby{display:block!important}
 .start-cast .cast-tongue{transform:translate(-50%,0);transform-origin:50% 0;overflow:hidden;}
 .start-cast .cast-tongue-art{width:100%;height:100%;object-fit:fill;}
 
-/* Tongues emerge from the mouth line in the illustration; no free-floating offset. */
+/* Mouth-fitted tongue motion. Keep dimensions anchored to crew-cast original art. */
 .start-cast .cast-tongue {
   transform:translateX(-50%);
-  transform-origin:50% 0;
+  transform-origin:50% 0%;
   overflow:hidden;
-  border-radius:0 0 48% 48%;
+  border-radius:0 0 46% 46%;
   filter:none;
 }
 .start-cast .cast-tongue-art {
-  width:100%;height:100%;max-width:none;object-fit:fill;
-  transform-origin:50% 0;
-  filter:drop-shadow(0 1px 1px rgba(15,8,12,.38));
+  display:block;
+  max-width:none;
+  width:100%;height:100%;
+  object-fit:fill;
+  transform-origin:50% 0%;
+  filter:drop-shadow(0 1px 1px rgba(20,8,15,.22));
 }
 .start-cast .cast-tongue.is-visible .cast-tongue-art {
-  animation:mouthTonguePop .68s cubic-bezier(.25,.75,.24,1) both;
+  animation:mouthTonguePop .58s cubic-bezier(.18,.68,.2,1) both;
 }
 @keyframes mouthTonguePop {
-  0%{transform:scaleY(.025)}
-  38%{transform:scaleY(.78)}
-  64%{transform:scaleY(1.08)}
-  82%{transform:scaleY(.96)}
+  0%{transform:scaleY(.015)}
+  48%{transform:scaleY(.83)}
+  70%{transform:scaleY(1.04)}
   100%{transform:scaleY(1)}
 }
 @media (prefers-reduced-motion:reduce){
  .start-cast .cast-tongue.is-visible .cast-tongue-art{animation:none}
 }
-/* End mouth alignment patch */
+/* End mouth-fitted tongue motion. */
