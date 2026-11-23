@@ -105,7 +105,6 @@
             <div class="mp-online-fields">
               <label>Online server URL<input id="mpOnlineServer" type="url" spellcheck="false" placeholder="wss://your-online-server.onrender.com/ws" autocomplete="off"></label>
               <label>Your name<input id="mpOnlineName" type="text" maxlength="18" placeholder="Your nickname" autocomplete="off"></label>
-              <label>Friend's room code<input id="mpOnlineRoom" type="text" maxlength="8" placeholder="ABCDEFG" autocomplete="off" autocapitalize="characters"></label>
             </div>
             <div class="mp-online-buttons">
               <button id="mpOnlineHost" class="btn btn-primary" type="button">CREATE ONLINE ROOM</button>
@@ -121,6 +120,22 @@
             <p id="mpOnlineRoster" class="mp-online-roster" aria-live="polite"></p>
             <small>The dedicated server runs the match even if the room leader disconnects. Everyone plays with their own P1 controls. Local play remains available below.</small>
           </div>
+          <dialog id="mpJoinDialog" class="mp-join-dialog" aria-labelledby="mpJoinTitle" aria-describedby="mpJoinHint">
+            <form id="mpJoinForm" method="dialog">
+              <div class="mp-join-heading">
+                <h3 id="mpJoinTitle">JOIN A FRIEND'S ROOM</h3>
+                <button id="mpJoinCancel" class="mp-join-close" type="button" aria-label="Close join room dialog">×</button>
+              </div>
+              <p id="mpJoinHint">Ask your friend for their room code, then join their crew.</p>
+              <label for="mpOnlineRoom">ROOM CODE</label>
+              <input id="mpOnlineRoom" type="text" maxlength="8" inputmode="text" autocapitalize="characters" autocomplete="off" spellcheck="false" placeholder="ENTER ROOM CODE" required pattern="[A-Za-z0-9]{4,8}" aria-describedby="mpJoinError">
+              <p id="mpJoinError" class="mp-join-error" role="alert" aria-live="polite"></p>
+              <div class="mp-join-actions">
+                <button class="btn btn-ghost" type="button" id="mpJoinBack">CANCEL</button>
+                <button class="btn btn-primary" type="submit">JOIN ROOM</button>
+              </div>
+            </form>
+          </dialog>
           <div id="characterGrid" class="character-grid"></div>
         </section>
 

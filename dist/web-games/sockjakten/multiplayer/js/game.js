@@ -235,13 +235,15 @@ function setupTongueCast() {
   cast.alt = '';
   mount.append(cast);
   // Mouth positions in the original image, left to right plus Draco.
+  // Mouth anchors measured on the 1672 × 941 source illustration.
+  // Character mapping matters: Lairy is yellow (left); Clawster is orange (far right).
   const mouths = [
-    {label:'Strappy',    asset:'strappy',    x:387/1672,  y:632/941, w:32, h:39},
-    {label:'Clawster',   asset:'clawster',   x:573/1672,  y:769/941, w:28, h:29},
-    {label:'Trasselsudd',asset:'trasselsudd',x:829/1672,  y:733/941, w:24, h:25},
-    {label:'Gramp',      asset:'gramp',      x:1109/1672, y:724/941, w:30, h:35},
-    {label:'Lairy',      asset:'lairy',      x:1420/1672, y:737/941, w:24, h:25},
-    {label:'Draco',      asset:'draco',      x:1109/1672, y:223/941, w:31, h:43},
+    {label:'Strappy',asset:'strappy',x:383/1672,y:625/941,w:27,h:34},
+    {label:'Lairy',asset:'lairy',x:575/1672,y:748/941,w:23,h:28},
+    {label:'Trasselsudd',asset:'trasselsudd',x:820/1672,y:739/941,w:24,h:27},
+    {label:'Gramp',asset:'gramp',x:1101/1672,y:733/941,w:23,h:31},
+    {label:'Clawster',asset:'clawster',x:1424/1672,y:738/941,w:27,h:31},
+    {label:'Draco',asset:'draco',x:1090/1672,y:220/941,w:20,h:31},
   ];
   const buttons = mouths.map((spot, index) => {
     const button = document.createElement('button');
@@ -3567,13 +3569,31 @@ function mpOnlineSetup(){
     localStorage.setItem('tthc-online-server',server);
     online.connect('host',server,'',mpLobby.choices[0],false,$('#mpOnlineName').value.trim()||'HOST');
   };
+  const joinDialog=$('#mpJoinDialog');
+  const joinInput=$('#mpOnlineRoom');
+  const joinError=$('#mpJoinError');
+  const closeJoin=()=>{if(joinDialog.open)joinDialog.close();};
   $('#mpOnlineJoin').onclick=()=>{
-    const server=$('#mpOnlineServer').value.trim();
-    const room=$('#mpOnlineRoom').value.trim().toUpperCase();
-    if(!room){$('#mpOnlineStatus').textContent='Enter the room code from the host.';return;}
-    localStorage.setItem('tthc-online-server',server);
-    online.connect('guest',server,room,$('#mpOnlineCharacter').value,false,$('#mpOnlineName').value.trim()||'GUEST');
+    joinError.textContent='';
+    if(!joinDialog.open)joinDialog.showModal();
+    joinInput.focus();joinInput.select();
   };
+  $('#mpJoinCancel').onclick=closeJoin;
+  $('#mpJoinBack').onclick=closeJoin;
+  joinDialog.addEventListener('click',event=>{if(event.target===joinDialog)closeJoin();});
+  $('#mpJoinForm').addEventListener('submit',event=>{
+    event.preventDefault();
+    const server=$('#mpOnlineServer').value.trim();
+    const room=joinInput.value.trim().replace(/\s+/g,'').toUpperCase();
+    if(!/^[A-Z0-9]{4,8}$/.test(room)){
+      joinError.textContent='Enter the 4–8 character room code your friend shared.';
+      joinInput.focus();return;
+    }
+    if(!server){joinError.textContent='The online server address is missing.';return;}
+    localStorage.setItem('tthc-online-server',server);
+    closeJoin();
+    online.connect('guest',server,room,$('#mpOnlineCharacter').value,false,$('#mpOnlineName').value.trim()||'GUEST');
+  });
   $('#mpOnlineCharacter').onchange=e=>{
     if(online.role==='guest')online.send({type:'character',character:e.target.value});
   };

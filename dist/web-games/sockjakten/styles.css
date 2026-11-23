@@ -1106,3 +1106,7 @@ kbd { display: inline-grid; min-width: 27px; height: 27px; place-items: center; 
   .cast-tongue.is-visible .cast-tongue-art {animation:none;}
 }
  }
+
+/* Mouth-mounted tongues: position belongs to the same scaled illustration as the cast. */
+.start-cast .cast-tongue{transform:translate(-50%,0);transform-origin:50% 0;overflow:hidden;}
+.start-cast .cast-tongue-art{width:100%;height:100%;object-fit:fill;}

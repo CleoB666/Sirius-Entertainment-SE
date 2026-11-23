@@ -1234,3 +1234,25 @@ body.mp-online-guest #characterGrid.mp-lobby{display:block!important}
   .cast-tongue.is-visible .cast-tongue-art {animation:none;}
 }
  }
+
+/* Room code is entered only after JOIN ROOM is selected. */
+.mp-online-fields{grid-template-columns:minmax(0,2fr) minmax(0,1fr)}
+.mp-join-dialog{position:fixed;inset:0;margin:auto;width:min(440px,calc(100vw - 30px));max-height:min(90dvh,680px);overflow:auto;padding:0;border:1px solid #73cabe;border-radius:15px;background:linear-gradient(145deg,#0c2130,#161c32);color:#f3f4f1;box-shadow:0 26px 90px rgba(0,0,0,.72);z-index:9999}
+.mp-join-dialog:not([open]){display:none!important}
+.mp-join-dialog::backdrop{background:rgba(2,8,15,.78);backdrop-filter:blur(4px)}
+.mp-join-dialog form{display:grid;gap:15px;padding:clamp(18px,4vw,28px)}
+.mp-join-heading{display:flex;align-items:center;justify-content:space-between;gap:12px}
+.mp-join-heading h3{margin:0;color:#80f6df;font-size:1.15rem;letter-spacing:.065em}
+.mp-join-dialog p{margin:0;color:#c5dbe3;line-height:1.5;font-size:.91rem}
+.mp-join-dialog label{font-weight:800;color:#ffcf87;letter-spacing:.06em}
+.mp-join-dialog input{width:100%;font:inherit;min-height:52px;letter-spacing:.16em;font-weight:800;text-transform:uppercase;border-radius:9px;padding:12px;color:#fff;background:#0c1726;border:1px solid #6f92a0}
+.mp-join-dialog input:focus-visible{outline:2px solid #8bffe7;outline-offset:2px}
+.mp-join-dialog .mp-join-error{min-height:1.3em;color:#ffd0a6}
+.mp-join-actions{display:flex;flex-wrap:wrap;gap:9px;justify-content:flex-end}
+.mp-join-actions .btn{min-height:46px}
+.mp-join-close{background:none;border:0;color:#e9eff2;cursor:pointer;font-size:1.9rem;line-height:1;padding:3px 8px}
+@media(max-width:700px){.mp-online-fields{grid-template-columns:1fr}.mp-join-actions .btn{flex:1;min-width:0}}
+
+/* Mouth-mounted tongues: position belongs to the same scaled illustration as the cast. */
+.start-cast .cast-tongue{transform:translate(-50%,0);transform-origin:50% 0;overflow:hidden;}
+.start-cast .cast-tongue-art{width:100%;height:100%;object-fit:fill;}
